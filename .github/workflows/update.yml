@@ -1,0 +1,72 @@
+name: 更新資料並部署網站
+
+on:
+  schedule:
+    - cron: "17 */2 * * *"     # 每 2 小時（UTC 時間第 17 分，避開整點尖峰）
+  workflow_dispatch:            # 可在 Actions 頁面手動執行
+  push:
+    branches: [main]
+    paths: ["docs/**", "cloud/**", "*.py", ".github/workflows/**"]
+
+permissions:
+  contents: write   # 讀寫 Release 附件（加密狀態）
+  pages: write
+  id-token: write
+
+concurrency:
+  group: update-site
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 安裝套件
+        run: pip install cryptography
+
+      - name: 下載加密狀態
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p cloud_state
+          gh release download state -p state.enc -D cloud_state --clobber || echo "尚無狀態檔"
+
+      - name: 同步資料、更新模型、加密輸出
+        env:
+          STATE_KEY: ${{ secrets.STATE_KEY }}
+          BM_PASSWORD: ${{ secrets.BM_PASSWORD }}
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          STATE_PATH: cloud_state/state.enc
+          SITE_DIR: site
+        run: |
+          mkdir -p site && cp -r docs/. site/
+          python cloud/build.py
+
+      - name: 存回加密狀態
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view state >/dev/null 2>&1 || gh release create state --title "加密狀態（自動更新，請勿刪除）" --notes "GitHub Actions 自動維護的加密資料，沒有金鑰無法讀取。"
+          gh release upload state cloud_state/state.enc --clobber
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

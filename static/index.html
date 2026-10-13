@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BallMetrics">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+<link rel="icon" href="/static/icons/favicon-32.png">
+<title>BallMetrics AI - 運彩量化決策系統</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  body { background:#0b0f19; color:#f1f5f9; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft JhengHei",Roboto,sans-serif; }
+  .num { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-variant-numeric: tabular-nums; }
+  .inp { background:#0f172a; border:1px solid #334155; border-radius:.5rem; padding:.35rem .5rem; color:#f1f5f9; font-size:.8rem; width:100%; }
+  .inp:focus { outline:none; border-color:#6366f1; }
+  .inp-sm { width:4.6rem; padding:.15rem .35rem; text-align:right; }
+  .btn { border-radius:.5rem; padding:.4rem .8rem; font-size:.75rem; font-weight:600; transition:.15s; }
+  .btn-pri { background:#4f46e5; color:#fff; } .btn-pri:hover { background:#6366f1; }
+  .btn-sec { background:#1e293b; color:#cbd5e1; border:1px solid #334155; } .btn-sec:hover { background:#334155; }
+  .btn-ok { background:#059669; color:#fff; } .btn-ok:hover { background:#10b981; }
+  .btn-del { background:transparent; color:#f87171; border:1px solid #7f1d1d; } .btn-del:hover { background:#450a0a; }
+  .tab { padding:.6rem .9rem; font-size:.8rem; color:#94a3b8; border-bottom:2px solid transparent; white-space:nowrap; }
+  .tab.active { color:#fff; border-color:#6366f1; }
+  .card { background:#0f172a; border:1px solid #1e293b; border-radius:1rem; }
+  .kpi { background:#0f172a; border:1px solid #1e293b; border-radius:.75rem; padding:.75rem 1rem; }
+  .pos { color:#34d399; } .neg { color:#f87171; } .mut { color:#94a3b8; }
+  table.t { width:100%; font-size:.75rem; border-collapse:collapse; }
+  table.t th { text-align:left; color:#94a3b8; font-weight:500; padding:.5rem; border-bottom:1px solid #1e293b; white-space:nowrap; }
+  table.t td { padding:.5rem; border-bottom:1px solid #1e293b; vertical-align:middle; }
+  .bar { height:6px; border-radius:3px; background:#1e293b; overflow:hidden; position:relative; }
+  .hidden-i { display:none !important; }
+  #toast { transition: opacity .3s; }
+  * { -webkit-tap-highlight-color: transparent; }
+  header { padding-top: env(safe-area-inset-top); }
+  /* 手機版：底部分頁列 */
+  #bottom-nav { padding-bottom: env(safe-area-inset-bottom); }
+  #bottom-nav button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: .45rem 0 .35rem;
+    font-size: .65rem; color: #94a3b8; }
+  #bottom-nav button .ic { font-size: 1.15rem; line-height: 1; filter: grayscale(.6); }
+  #bottom-nav button.active { color: #fff; }
+  #bottom-nav button.active .ic { filter: none; }
+  @media (max-width: 767px) {
+    main { padding-bottom: calc(5rem + env(safe-area-inset-bottom)) !important; padding-left: .75rem !important; padding-right: .75rem !important; }
+    .btn { padding: .5rem .75rem; }
+    .inp { font-size: 16px; }            /* 避免 iPhone 點輸入框時自動放大 */
+    .inp-sm { width: 4.4rem; }
+    #modal > div { margin: 0 !important; min-height: 100%; border-radius: 0; max-width: none; padding-top: calc(1.25rem + env(safe-area-inset-top)); }
+    #modal { padding: 0 !important; }
+    #toast { bottom: calc(5rem + env(safe-area-inset-bottom)); }
+  }
+  .qr img, .qr canvas { background: #fff; padding: 8px; border-radius: 8px; }
+</style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+<header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40">
+  <div class="max-w-6xl mx-auto px-4 pt-3 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 bg-indigo-600 rounded-lg grid place-items-center font-black text-white">B</div>
+      <div>
+        <h1 class="font-bold text-white leading-tight">BallMetrics AI</h1>
+        <p class="text-[11px] text-slate-400 hidden sm:block">運彩 +EV 量化決策 · 下注紀錄 · 績效統計</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3 sm:gap-4">
+      <div class="text-right">
+        <p class="text-[10px] text-slate-400">目前資金</p>
+        <p class="text-sm font-bold text-emerald-400 num" id="hdr-bank">—</p>
+      </div>
+      <div class="text-right hidden sm:block">
+        <p class="text-[10px] text-slate-400">資料同步</p>
+        <p class="text-[11px] num text-slate-300" id="hdr-sync">—</p>
+      </div>
+      <button class="btn btn-sec whitespace-nowrap" id="sync-btn" onclick="syncNow()" title="同步賠率/賽果">⟳<span class="hidden sm:inline"> 同步賠率/賽果</span></button>
+    </div>
+  </div>
+  <nav class="max-w-6xl mx-auto px-2 hidden md:flex overflow-x-auto" id="tabs">
+    <button class="tab active" data-tab="games">賽事分析</button>
+    <button class="tab" data-tab="bets">下注紀錄</button>
+    <button class="tab" data-tab="stats">績效統計</button>
+    <button class="tab" data-tab="parlay">串關試算 <span id="parlay-count" class="text-indigo-300"></span></button>
+    <button class="tab" data-tab="models">模型中心</button>
+    <button class="tab" data-tab="settings">參數設定</button>
+  </nav>
+</header>
+
+<main class="flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
+  <div id="risk-banner" class="hidden p-3 rounded-xl bg-rose-950/50 border border-rose-800 text-rose-200 text-sm">
+    ⚠ 今日虧損已達設定上限，系統已暫停下注建議。休息一下，明天再看。
+  </div>
+
+  <!-- ===================== 賽事分析 ===================== -->
+  <section id="tab-games" class="space-y-4">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="games-kpis"></div>
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div class="flex flex-wrap gap-2" id="league-filters"></div>
+      <div class="flex flex-wrap items-center gap-3 text-xs">
+        <label class="flex items-center gap-1.5 text-slate-300"><input type="checkbox" id="only-rec" onchange="renderGames()"> 只看建議下單</label>
+        <label class="flex items-center gap-1.5 text-slate-300"><input type="checkbox" id="hide-settled" checked onchange="renderGames()"> 隱藏已結束</label>
+        <button class="btn btn-pri" onclick="openGameModal()">＋ 新增賽事</button>
+      </div>
+    </div>
+    <p class="text-[11px] text-slate-500" id="rule-line"></p>
+    <div id="games-container" class="space-y-4"></div>
+  </section>
+
+  <!-- ===================== 下注紀錄 ===================== -->
+  <section id="tab-bets" class="space-y-4 hidden">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h2 class="font-bold">下注紀錄</h2>
+      <div class="flex flex-wrap gap-2">
+        <button class="btn btn-sec" onclick="autoSettle()">依賽果自動結算</button>
+        <button class="btn btn-sec" onclick="openBetModal()">＋ 手動新增</button>
+        <a class="btn btn-sec" href="/api/bets.csv">匯出 CSV</a>
+      </div>
+    </div>
+    <p class="text-[11px] text-slate-500">在「收盤賠率」填入開賽前最後賠率，可計算 CLV（下注賠率比收盤好多少）。長期 CLV 為正，通常代表你的判斷領先市場。</p>
+    <div class="card overflow-x-auto"><table class="t" id="bets-table"></table></div>
+  </section>
+
+  <!-- ===================== 績效統計 ===================== -->
+  <section id="tab-stats" class="space-y-4 hidden">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="stats-kpis"></div>
+    <div class="grid md:grid-cols-3 gap-4">
+      <div class="card p-4 md:col-span-2">
+        <h3 class="text-sm font-semibold mb-2">資金曲線</h3>
+        <div class="h-64"><canvas id="curve-chart"></canvas></div>
+      </div>
+      <div class="card p-4">
+        <h3 class="text-sm font-semibold mb-2">分聯盟績效</h3>
+        <div id="league-table" class="overflow-x-auto"></div>
+      </div>
+    </div>
+    <div class="grid md:grid-cols-2 gap-4">
+      <div class="card p-4">
+        <h3 class="text-sm font-semibold">模型校準：模型 vs 市場</h3>
+        <p class="text-[11px] text-slate-500 mb-3">使用已填入賽果的賽事。Brier 分數越低越準；模型要穩定低於市場，+EV 訊號才可信。</p>
+        <div id="calib-box"></div>
+      </div>
+      <div class="card p-4">
+        <h3 class="text-sm font-semibold">策略回測（依目前參數）</h3>
+        <p class="text-[11px] text-slate-500 mb-3">對已結束賽事，模擬「照系統建議、依凱利注碼下注」的結果。</p>
+        <div id="backtest-box"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 串關 ===================== -->
+  <section id="tab-parlay" class="space-y-4 hidden">
+    <div class="card p-4 space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="font-bold">串關試算</h2>
+        <button class="btn btn-sec" onclick="addManualLeg()">＋ 手動新增一關</button>
+      </div>
+      <p class="text-[11px] text-slate-500">從賽事卡片按「加入串關」帶入。串關會把每一關的抽水相乘放大，通常只有每關都具備明顯優勢時才值得。</p>
+      <div id="parlay-legs" class="space-y-2"></div>
+      <div id="parlay-result"></div>
+    </div>
+  </section>
+
+  <!-- ===================== 模型中心 ===================== -->
+  <section id="tab-models" class="space-y-4 hidden">
+    <div class="card p-4 text-xs text-slate-400 leading-relaxed space-y-1">
+      <p class="text-sm font-bold text-white">勝率模型如何運作</p>
+      <p>・<b class="text-slate-200">Elo 評分</b>：以歷史戰績替每隊計算實力分數，含主場優勢、比分差距、換季回歸，參數用網格搜尋自動挑選，並以「最後一季」做樣本外驗證。</p>
+      <p>・<b class="text-slate-200">國際盤共識</b>：由 The Odds API 取得多家國際博彩公司賠率，各自去水後平均。國際盤（尤其 Pinnacle）通常比任何單一模型都準。</p>
+      <p>・<b class="text-slate-200">混合</b>：賽事設為「自動」時，模型勝率 = Elo × 權重 + 國際盤 ×（1 − 權重），再拿去跟台灣運彩賠率比較找 +EV。</p>
+    </div>
+    <div class="card p-4 space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3 class="font-bold text-sm">匯入歷史資料（中職、TPBL 等）</h3>
+        <a class="text-[11px] text-indigo-300" href="javascript:void(0)" onclick="fillTemplate()">填入範例格式</a>
+      </div>
+      <div class="grid sm:grid-cols-4 gap-2 text-xs">
+        <label><span class="text-slate-400">聯盟代碼</span><input id="imp-league" class="inp" placeholder="CPBL / TPBL / NPB…"></label>
+        <label class="sm:col-span-3"><span class="text-slate-400">或選擇 CSV 檔</span><input id="imp-file" type="file" accept=".csv,text/csv" class="inp" onchange="readImpFile(this)"></label>
+      </div>
+      <textarea id="imp-text" class="inp num" rows="5" placeholder="date,away,home,away_score,home_score&#10;2026-03-28,中信兄弟,味全龍,3,5"></textarea>
+      <div class="flex justify-between items-center gap-2 flex-wrap">
+        <p class="text-[11px] text-slate-500">欄位：date（日期）、away（客隊）、home（主隊）、away_score、home_score；可選 season。隊名需與賽事卡片一致。之後在系統填入的賽果也會自動加入。</p>
+        <button class="btn btn-pri" onclick="importHistory()">匯入並訓練</button>
+      </div>
+    </div>
+    <div id="models-box" class="space-y-4"></div>
+  </section>
+
+  <!-- ===================== 設定 ===================== -->
+  <section id="tab-settings" class="hidden space-y-4">
+    <div class="card p-5 max-w-2xl" id="mobile-card"></div>
+    <div class="card p-5 max-w-2xl">
+      <h2 class="font-bold mb-4">參數設定</h2>
+      <form id="settings-form" class="grid sm:grid-cols-2 gap-4 text-xs"></form>
+      <h3 class="font-bold mt-6 mb-3 text-sm">勝率模型與即時同步</h3>
+      <form id="settings-form2" class="grid sm:grid-cols-2 gap-4 text-xs"></form>
+      <div class="mt-5 flex gap-2"><button class="btn btn-pri" onclick="saveSettings()">儲存設定</button></div>
+      <div class="mt-6 text-[11px] text-slate-500 leading-relaxed space-y-1">
+        <p>・<b>分數凱利</b>：全凱利波動極大，建議 0.1~0.25。</p>
+        <p>・<b>去水方法</b>：power 會把較多抽水算在冷門方，通常比等比例更貼近實際。</p>
+        <p>・<b>單日虧損上限</b>：當天結算虧損達資金的此比例，系統自動停止建議（設 0 為關閉）。</p>
+      </div>
+    </div>
+  </section>
+
+  <p class="text-[11px] text-slate-600 text-center pt-4">本系統為統計分析工具，不保證獲利。運彩含莊家抽水，長期而言多數下注為負期望值；請量力而為，未滿 18 歲不得購買運動彩券。</p>
+</main>
+
+<!-- ===================== 手機底部分頁列 ===================== -->
+<nav id="bottom-nav" class="md:hidden fixed bottom-0 inset-x-0 z-40 bg-slate-900/95 backdrop-blur border-t border-slate-800 flex">
+  <button data-tab="games" class="active"><span class="ic">🏟️</span>賽事</button>
+  <button data-tab="bets"><span class="ic">📝</span>紀錄</button>
+  <button data-tab="stats"><span class="ic">📊</span>統計</button>
+  <button data-tab="parlay"><span class="ic">🔗</span>串關<span id="parlay-count-m" class="text-indigo-300 text-[10px]"></span></button>
+  <button data-tab="models"><span class="ic">🧠</span>模型</button>
+  <button data-tab="settings"><span class="ic">⚙️</span>設定</button>
+</nav>
+
+<!-- ===================== Modal ===================== -->
+<div id="modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-start justify-center p-4 overflow-y-auto">
+  <div class="card w-full max-w-2xl p-5 my-8 relative">
+    <button class="absolute top-3 right-4 text-slate-400 hover:text-white text-xl" onclick="closeModal()">×</button>
+    <h3 id="modal-title" class="font-bold mb-4"></h3>
+    <div id="modal-body"></div>
+  </div>
+</div>
+<div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 bg-slate-800 border border-slate-700 text-sm px-4 py-2 rounded-lg opacity-0 pointer-events-none z-[60]"></div>
+
+<script>
+const S = { games: [], settings: {}, bankroll: 0, bets: [], stats: null, league: 'ALL', parlay: [], chart: null, riskBlock: false };
+const LEAGUE_STYLE = { MLB: 'bg-blue-950 text-blue-300 border-blue-800', CPBL: 'bg-amber-950 text-amber-300 border-amber-800',
+  TPBL: 'bg-emerald-950 text-emerald-300 border-emerald-800', NBA: 'bg-orange-950 text-orange-300 border-orange-800',
+  NPB: 'bg-rose-950 text-rose-300 border-rose-800', KBO: 'bg-cyan-950 text-cyan-300 border-cyan-800' };
+const STATUS_TXT = { pending: '未結算', won: '贏', lost: '輸', push: '走盤', void: '取消' };
+
+// ---------- utils ----------
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money = n => (n < 0 ? '-' : '') + '$' + Math.abs(Math.round(n || 0)).toLocaleString();
+const sgn = (n, d = 2) => (n > 0 ? '+' : '') + Number(n).toFixed(d);
+const cls = n => n > 0 ? 'pos' : (n < 0 ? 'neg' : 'mut');
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(t._h); t._h = setTimeout(() => t.style.opacity = 0, 2200); }
+async function api(url, opt = {}) {
+  const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opt, body: opt.body ? JSON.stringify(opt.body) : undefined });
+  const j = await res.json().catch(() => ({}));
+  if (res.status === 401 && url !== '/api/access/pin') { location.href = '/login'; throw new Error('請先登入'); }
+  if (!res.ok) { const d = j.detail; throw new Error(typeof d === 'string' ? d : (Array.isArray(d) ? d.map(x => (x.loc||[]).slice(-1)[0] + '：' + x.msg).join('；') : '發生錯誤')); }
+  return j;
+}
+function countdown(g) {
+  const ko = new Date(g.date + 'T' + g.time + ':00+08:00'); const diff = ko - new Date();
+  if (diff <= 0) return '';
+  const h = Math.floor(diff / 3600000), d = Math.floor(h / 24);
+  return d >= 1 ? `${d} 天 ${h % 24} 小時後` : `${h} 小時 ${Math.floor(diff % 3600000 / 60000)} 分後`;
+}
+
+// ---------- tabs ----------
+document.querySelectorAll('.tab, #bottom-nav button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+function showTab(name) {
+  document.querySelectorAll('.tab, #bottom-nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  window.scrollTo({ top: 0 });
+  ['games','bets','stats','parlay','models','settings'].forEach(t => document.getElementById('tab-' + t).classList.toggle('hidden', t !== name));
+  try { localStorage.setItem('bm_tab', name); } catch (e) {}
+  if (name === 'stats') loadStats();
+  if (name === 'bets') loadBets();
+  if (name === 'settings') { renderSettings(); loadAccess(); }
+  if (name === 'parlay') renderParlay();
+  if (name === 'models') loadModels();
+}
+
+// ---------- load ----------
+async function loadGames() {
+  try {
+    const j = await api('/api/analysis');
+    S.games = j.data; S.settings = j.settings; S.bankroll = j.bankroll; S.riskBlock = j.risk_block; S.feed = j.feed || {};
+    renderFeed();
+  } catch (e) { toast('無法連線後端：' + e.message); }
+  document.getElementById('hdr-bank').textContent = money(S.bankroll);
+  document.getElementById('risk-banner').classList.toggle('hidden', !S.riskBlock);
+  renderGames();
+}
+function renderFeed() {
+  const f = S.feed || {}; const el = document.getElementById('hdr-sync');
+  if (!el) return;
+  const t = f.last_run ? f.last_run.slice(5, 16) : '尚未同步';
+  el.innerHTML = esc(t) + (f.quota_remaining != null ? ` · 額度 ${esc(f.quota_remaining)}` : (S.settings.has_odds_key ? '' : ' · 未設國際盤金鑰'))
+    + ((f.errors || []).length ? ' <span class="neg" title="' + esc(f.errors.join('\n')) + '">⚠</span>' : '');
+}
+async function syncNow() {
+  const b = document.getElementById('sync-btn'); b.disabled = true; b.textContent = '同步中…';
+  try {
+    const j = await api('/api/sync', { method: 'POST' }); const s = j.data.last_summary || {};
+    toast(`同步完成：新增 ${s.created || 0} 場、更新 ${s.updated || 0} 場、賽果 ${s.results || 0} 場` + ((j.data.errors || []).length ? '（有錯誤，滑過 ⚠ 查看）' : ''));
+    await loadGames();
+  } catch (e) { toast('同步失敗：' + e.message); }
+  b.disabled = false; b.textContent = '⟳ 同步賠率/賽果';
+}
+async function refreshAll() {
+  await loadGames();
+  const cur = document.querySelector('.tab.active, #bottom-nav button.active').dataset.tab;
+  if (cur !== 'games') showTab(cur);
+  toast('已更新');
+}
+
+// ---------- games ----------
+function renderGames() {
+  const s = S.settings;
+  document.getElementById('rule-line').textContent =
+    `進場條件：EV ≥ +${s.min_ev}%、勝率優勢 ≥ +${s.min_edge}%、賠率 ${s.min_odds}~${s.max_odds}｜注碼：${s.kelly_fraction} 凱利，單注上限 ${s.max_stake_pct}%｜去水：${s.devig_method === 'power' ? '冪次法' : '等比例'}`;
+
+  const leagues = ['ALL', ...new Set(S.games.map(g => g.league))];
+  document.getElementById('league-filters').innerHTML = leagues.map(l =>
+    `<button class="btn ${S.league === l ? 'btn-pri' : 'btn-sec'}" onclick="S.league='${esc(l)}';renderGames()">${l === 'ALL' ? '全部' : esc(l)}</button>`).join('');
+
+  const upcoming = S.games.filter(g => g.status === 'upcoming');
+  const recs = upcoming.filter(g => g.recommendation && !g.recommendation.blocked);
+  const totalStake = recs.reduce((a, g) => a + g.recommendation.stake_amount, 0);
+  const priced = S.games.filter(g => g.sides.every(r => r.odds > 1));
+  const avgVig = priced.length ? priced.reduce((a, g) => a + g.vig_pct, 0) / priced.length : 0;
+  document.getElementById('games-kpis').innerHTML = [
+    ['未開賽場次', upcoming.length, ''],
+    ['建議下單', recs.length + ' 場', recs.length ? 'pos' : 'mut'],
+    ['建議總注金', money(totalStake), '', S.bankroll ? `佔資金 ${(totalStake / S.bankroll * 100).toFixed(1)}%` : ''],
+    ['平均抽水', avgVig.toFixed(2) + '%', 'neg', '賠率越低抽水越重'],
+  ].map(([k, v, c, sub]) => `<div class="kpi"><p class="text-[11px] text-slate-400">${k}</p><p class="text-lg font-bold num ${c}">${v}</p>${sub ? `<p class="text-[10px] text-slate-500">${sub}</p>` : ''}</div>`).join('');
+
+  const onlyRec = document.getElementById('only-rec').checked;
+  const hideSettled = document.getElementById('hide-settled').checked;
+  const list = S.games.filter(g => (S.league === 'ALL' || g.league === S.league)
+    && (!onlyRec || g.recommendation) && (!hideSettled || g.status !== 'settled'));
+  const box = document.getElementById('games-container');
+  box.innerHTML = list.length ? list.map(gameCard).join('') :
+    '<div class="card p-8 text-center text-slate-400 text-sm">沒有符合條件的賽事。按「＋ 新增賽事」輸入運彩最新盤口。</div>';
+}
+
+function gameCard(g) {
+  const rec = g.recommendation;
+  const isBB = g.sport === 'basketball';
+  const leagueCls = LEAGUE_STYLE[g.league] || 'bg-slate-800 text-slate-300 border-slate-700';
+  let statusTag = '';
+  if (g.status === 'settled') {
+    const winner = g.result === 'draw' ? '和局' : g[g.result + '_team'];
+    statusTag = `<span class="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-300">已結束 ${esc(g.score)}・${esc(winner)} 勝</span>`;
+  } else if (g.status === 'started') statusTag = '<span class="text-[11px] px-2 py-0.5 rounded bg-rose-950 text-rose-300">已開賽</span>';
+  else statusTag = `<span class="text-[11px] text-slate-400">${countdown(g)}</span>`;
+
+  const sideBox = r => {
+    const picked = rec && rec.side === r.side;
+    const move = r.odds_move ? `<span class="text-[10px] ${r.odds_move > 0 ? 'pos' : 'neg'}">${r.odds_move > 0 ? '▲' : '▼'}${Math.abs(r.odds_move).toFixed(2)}</span>` : '';
+    const starter = r.side === 'draw' ? '' : (g[r.side + '_starter'] || '');
+    return `<div class="p-3 rounded-xl ${picked ? 'bg-emerald-950/30 border border-emerald-500/50' : 'bg-slate-800/40 border border-slate-800'}">
+      <div class="flex justify-between items-start gap-2">
+        <div class="min-w-0"><p class="text-[11px] text-slate-400">${r.label}${picked ? ' · <span class="pos font-semibold">建議</span>' : ''}</p>
+          <h4 class="font-bold text-white truncate">${esc(r.team)}</h4>
+          ${starter ? `<p class="text-[11px] text-slate-400 truncate">${isBB ? '核心' : '先發'}：${esc(starter)}</p>` : ''}</div>
+        <div class="text-right shrink-0">
+          <label class="text-[10px] text-slate-500 block">賠率 ${move}</label>
+          <input class="inp inp-sm num text-amber-300 font-bold" type="number" step="0.01" min="1.01" value="${r.odds > 1 ? r.odds.toFixed(2) : ''}" placeholder="輸入"
+            onchange="patchGame('${g.id}', {'${r.side}_odds': parseFloat(this.value)})">
+        </div>
+      </div>
+      <div class="grid grid-cols-4 gap-1 mt-3 text-center">
+        <div><p class="text-[10px] text-slate-500">市場去水</p><p class="text-xs num">${r.odds > 1 ? r.fair_p.toFixed(1) + '%' : '—'}</p></div>
+        <div><p class="text-[10px] text-slate-500">模型勝率</p>
+          <input class="inp num text-center text-indigo-300 !px-1 !py-0 text-xs" type="number" step="0.5" min="0" max="100" value="${r.model_p}"
+            ${g.model_source === 'auto' ? 'disabled title="自動模式，由模型計算"' : ''}
+            onchange="patchGame('${g.id}', {'model_p_${r.side}': parseFloat(this.value)})"></div>
+        <div><p class="text-[10px] text-slate-500">優勢</p><p class="text-xs num ${r.odds > 1 ? cls(r.edge) : 'mut'}">${r.odds > 1 ? sgn(r.edge, 1) + '%' : '—'}</p></div>
+        <div><p class="text-[10px] text-slate-500">EV</p><p class="text-xs num font-bold ${r.odds > 1 ? cls(r.ev) : 'mut'}">${r.odds > 1 ? sgn(r.ev) + '%' : '—'}</p></div>
+      </div>
+      <div class="flex justify-between items-center mt-2 text-[10px] text-slate-500">
+        <span>達標賠率 ≥ <b class="num text-slate-300">${r.target_odds ?? '—'}</b></span>
+        <button class="text-indigo-300 hover:text-indigo-200" onclick="addLegFromGame('${g.id}','${r.side}')">＋ 加入串關</button>
+      </div>
+    </div>`;
+  };
+
+  // 機率對照條
+  const a = g.sides[0], h = g.sides[1];
+  const probBar = `<div class="space-y-1">
+    <div class="flex justify-between text-[10px] text-slate-500"><span>運彩去水 ${a.odds > 1 ? a.fair_p.toFixed(1) + '%' : '—'}</span><span>勝率對照（客 ← → 主）</span><span>${h.odds > 1 ? h.fair_p.toFixed(1) + '%' : '—'}</span></div>
+    <div class="bar"><div class="h-full bg-slate-500" style="width:${a.fair_p}%"></div></div>
+    <div class="bar"><div class="h-full bg-indigo-500" style="width:${a.model_p}%"></div></div>
+    <div class="flex justify-between text-[10px] text-indigo-300"><span>模型 ${a.model_p.toFixed(1)}%</span><span>${h.model_p.toFixed(1)}%</span></div>
+  </div>`;
+
+  let recBar;
+  if (rec) {
+    const tierCls = rec.tier === '強' ? 'bg-emerald-500 text-black' : rec.tier === '中' ? 'bg-emerald-700 text-white' : 'bg-emerald-900 text-emerald-200';
+    recBar = `<div class="p-3 rounded-xl border ${rec.blocked ? 'border-rose-800 bg-rose-950/30' : 'border-emerald-700/60 bg-emerald-950/20'} flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-2">
+        <span class="text-[11px] font-bold px-2 py-0.5 rounded ${tierCls}">${rec.tier}訊號</span>
+        <span class="font-bold text-emerald-300">🎯 ${esc(rec.team_name)} @ ${rec.odds.toFixed(2)}</span>
+        ${rec.note ? `<span class="text-[11px] text-rose-300">${esc(rec.note)}</span>` : ''}
+      </div>
+      <div class="flex items-center gap-4">
+        <div class="text-right"><p class="text-xs num font-bold pos">${sgn(rec.ev)}% EV</p><p class="text-[10px] text-slate-400">優勢 ${sgn(rec.edge, 1)}%</p></div>
+        <div class="text-right"><p class="text-xs num font-bold">${money(rec.stake_amount)}</p><p class="text-[10px] text-slate-400">資金 ${rec.kelly_pct}%</p></div>
+        ${rec.blocked || g.status !== 'upcoming' ? '' : `<button class="btn btn-ok" onclick="openBetModal('${g.id}')">記錄下注</button>`}
+      </div>
+    </div>`;
+  } else {
+    const reasons = (g.no_bet_reasons || []).map(x => `<li><b>${esc(x.team)}</b>：${x.reasons.map(esc).join('、')}</li>`).join('');
+    recBar = `<div class="p-3 rounded-xl border border-slate-800 bg-slate-950/60">
+      <div class="flex flex-wrap justify-between gap-2"><span class="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300">觀望（無顯著 +EV）</span>
+      <span class="text-[11px] text-slate-500 num">抽水 ${g.vig_pct}%｜返還率 ${g.payout_pct}%</span></div>
+      <details class="mt-2 text-[11px] text-slate-400"><summary class="cursor-pointer">為什麼不建議？</summary><ul class="mt-1 pl-4 list-disc space-y-0.5">${reasons}</ul></details>
+    </div>`;
+  }
+
+  const rp = g.report || {};
+  const sections = [
+    ['🎯', '決策邏輯（分析師觀點）', rp.why_bet, 'text-indigo-300'],
+    ['⚡', isBB ? '洋將戰力與核心對決' : '先發投手與壓制力', rp.pitcher_eval, 'text-emerald-400'],
+    ['🔥', isBB ? '團隊進攻效率' : '打線火力與串聯度', rp.batting_eval, 'text-amber-400'],
+    ['🛡', isBB ? '防守效率與籃板' : '守備與牛棚負荷', rp.defense_eval, 'text-cyan-400'],
+    ['📈', '整體勝率與對戰相剋', rp.team_winrate, 'text-purple-400'],
+    ['📍', '主客場作戰差異', rp.home_away, 'text-rose-400'],
+  ].filter(x => x[2]);
+
+  return `<article class="card p-4 space-y-3">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="px-2 py-0.5 rounded text-[11px] font-semibold border ${leagueCls}">${esc(g.league)}${g.stage ? ' · ' + esc(g.stage) : ''}</span>
+        ${g.venue ? `<span class="text-[11px] text-slate-400">📍 ${esc(g.venue)}</span>` : ''}
+        ${statusTag}
+      </div>
+      <span class="text-xs num text-slate-300 bg-slate-800/60 px-2 py-1 rounded border border-slate-700/60">🕒 ${esc(g.date)} ${esc(g.time)}</span>
+    </div>
+    ${(g.warnings || []).map(w => `<p class="text-[11px] text-amber-300">⚠ ${esc(w)}</p>`).join('')}
+    <div class="grid md:grid-cols-${g.sides.length} gap-3">${g.sides.map(sideBox).join('')}</div>
+    ${probBar}
+    ${modelPanel(g)}
+    ${recBar}
+    <p class="text-[11px] text-slate-400 leading-relaxed">🤖 ${esc(g.auto_summary)}</p>
+    <details class="border-t border-slate-800 pt-2">
+      <summary class="cursor-pointer text-xs font-semibold text-slate-300 hover:text-white">查看全維度分析（${sections.length} 項）</summary>
+      <div class="mt-2 space-y-2 text-xs leading-relaxed">${sections.map(([ic, t, body, c]) =>
+        `<div class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800"><p class="font-bold ${c} mb-1">${ic} ${t}</p><p class="text-slate-300">${esc(body)}</p></div>`).join('')}</div>
+    </details>
+    <div class="flex flex-wrap gap-2 justify-end pt-1">
+      <button class="btn btn-sec" onclick="openResultModal('${g.id}')">${g.result ? '修改賽果' : '填入賽果'}</button>
+      <button class="btn btn-sec" onclick="openGameModal('${g.id}')">編輯</button>
+      <button class="btn btn-del" onclick="deleteGame('${g.id}')">刪除</button>
+    </div>
+  </article>`;
+}
+
+function sparkline(hist) {
+  if (!hist || hist.length < 2) return '';
+  const v = hist.map(h => h.p_home), mn = Math.min(...v) - 0.5, mx = Math.max(...v) + 0.5, W = 90, H = 22;
+  const pts = v.map((y, i) => `${(i / (v.length - 1) * W).toFixed(1)},${(H - (y - mn) / (mx - mn) * H).toFixed(1)}`).join(' ');
+  return `<svg width="${W}" height="${H}" class="inline-block align-middle"><polyline points="${pts}" fill="none" stroke="#818cf8" stroke-width="1.5"/></svg>
+    <span class="num ${cls(v[v.length - 1] - v[0])}">${sgn(v[v.length - 1] - v[0], 1)}%</span>`;
+}
+function modelPanel(g) {
+  const d = g.model_detail || {};
+  const isAuto = g.model_source === 'auto';
+  const elo = d.elo_home != null ? `<span>Elo：客 <b class="num">${d.elo_away.toFixed(1)}%</b>／主 <b class="num">${d.elo_home.toFixed(1)}%</b> <span class="text-slate-500 num">(${Math.round(d.r_away)} vs ${Math.round(d.r_home)})</span></span>`
+    : '<span class="text-slate-500">Elo：尚無此聯盟/隊伍的模型（到「模型中心」匯入歷史資料）</span>';
+  const mk = d.market_home != null ? `<span>國際盤共識：客 <b class="num">${d.market_away.toFixed(1)}%</b>／主 <b class="num">${d.market_home.toFixed(1)}%</b>
+      <span class="text-slate-500">（${d.books} 家${d.pinnacle ? `，Pinnacle 主 ${d.pinnacle.home}%` : ''}｜最佳賠率 ${d.best_away ?? '—'} / ${d.best_home ?? '—'}｜${esc((d.market_updated || '').slice(5))}）</span>
+      ${sparkline(g.market_history)}</span>`
+    : `<span class="text-slate-500">國際盤：${S.settings.has_odds_key ? '尚無此場賠率' : '未設定 The Odds API 金鑰'}</span>`;
+  const spLine = spPanel(g, d);
+  return `<div class="p-2.5 rounded-lg bg-slate-950/50 border border-slate-800 text-[11px] text-slate-300 space-y-1">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <span class="font-semibold text-indigo-300">勝率來源：${isAuto ? '自動（' + esc(d.used || '無可用資料，請改手動') + '）' : '手動輸入'}</span>
+      <button class="btn btn-sec !py-0.5" onclick="patchGame('${g.id}', {model_source: '${isAuto ? 'manual' : 'auto'}'})">${isAuto ? '改為手動' : '改用自動模型'}</button>
+    </div>
+    <div class="flex flex-col gap-0.5">${elo}${mk}</div>
+    ${spLine}
+  </div>`;
+}
+function spPanel(g, d) {
+  if (g.league !== 'MLB' && g.league !== 'CPBL') return '';
+  const sp = d.sp;
+  if (!sp || !sp.away || !sp.home) {
+    return `<p class="text-slate-500">先發投手：${d.elo_home != null ? '尚未公布或模型未含投手資料，目前只用球隊實力' : '—'}</p>`;
+  }
+  const one = (v, label) => {
+    const r = v.recent;
+    const rec = r ? `近 ${r.starts} 場先發 ${r.ip} 局 ERA <b class="num">${r.era ?? '—'}</b>・${r.k}K ${r.bb}BB ${r.hr}HR` : '無近期先發紀錄';
+    const games = r ? r.games.map(x => `${x.date} ${x.ip}局${x.er}責${x.k}K`).join('｜') : '';
+    return `<div class="p-2 rounded bg-slate-900/70 border border-slate-800">
+      <div class="flex justify-between gap-2"><span>${label}：<b>${esc(v.name)}</b>${v.unmatched ? ' <span class="text-rose-300">（查無此投手紀錄，請確認先發是否正確；本場不做投手調整）</span>' : (v.known ? '' : ' <span class="text-amber-300">（樣本不足，以保守值估計）</span>')}</span>
+        <span class="num ${v.unmatched ? 'mut' : cls(v.elo)}">${v.unmatched ? '—' : sgn(v.elo, 0) + ' Elo'}</span></div>
+      <p class="text-slate-400">近況 FIP <b class="num text-slate-200">${v.fip}</b>（聯盟先發平均 ERA 約 ${(d.lg_era || S.lgEra || 4.2).toFixed(2)}）・預期 ${v.ip_exp} 局・每場省下 <span class="num ${cls(v.runs_saved)}">${sgn(v.runs_saved)}</span> 分</p>
+      <p class="text-slate-400">${rec}</p>
+      ${games ? `<p class="text-slate-500 num text-[10px]">${esc(games)}</p>` : ''}
+    </div>`;
+  };
+  const adj = d.sp_elo_adj || 0;
+  return `<div class="pt-1 space-y-1">
+    <p class="text-slate-300">⚾ 先發投手調整${(sp.away.unmatched || sp.home.unmatched) ? '（暫停）' : ''}：主隊 <b class="num ${cls(adj)}">${sgn(adj, 1)} Elo</b>，主隊 Elo 勝率 ${d.team_only_home?.toFixed(1)}% → <b class="num">${d.elo_home.toFixed(1)}%</b></p>
+    <div class="grid md:grid-cols-2 gap-1.5">${one(sp.away, '客')}${one(sp.home, '主')}</div>
+  </div>`;
+}
+async function patchGame(id, body) {
+  try { await api('/api/games/' + encodeURIComponent(id), { method: 'PATCH', body }); await loadGames(); toast('已重新計算'); }
+  catch (e) { toast('更新失敗：' + e.message); }
+}
+async function deleteGame(id) {
+  if (!confirm('確定刪除這場賽事？')) return;
+  await api('/api/games/' + encodeURIComponent(id), { method: 'DELETE' }); await loadGames(); toast('已刪除');
+}
+
+// ---------- modal ----------
+function openModal(title, html) { document.getElementById('modal-title').textContent = title; document.getElementById('modal-body').innerHTML = html;
+  const m = document.getElementById('modal'); m.classList.remove('hidden'); m.classList.add('flex'); }
+function closeModal() { const m = document.getElementById('modal'); m.classList.add('hidden'); m.classList.remove('flex'); }
+document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+
+const GAME_FIELDS = [
+  ['league', '聯盟', 'text', 'MLB / CPBL / TPBL…'], ['sport', '運動', 'select', ['baseball', 'basketball', 'soccer', 'other']],
+  ['stage', '階段', 'text', '例行賽 / 季後賽 G1'], ['venue', '場地', 'text', ''],
+  ['date', '日期', 'date'], ['time', '開賽時間（台灣）', 'time'],
+  ['away_team', '客隊', 'text'], ['home_team', '主隊', 'text'],
+  ['away_starter', '客隊先發 / 核心', 'text'], ['home_starter', '主隊先發 / 核心', 'text'],
+  ['away_odds', '客隊賠率', 'number'], ['home_odds', '主隊賠率', 'number'],
+  ['model_p_away', '模型勝率 客 %', 'number'], ['model_p_home', '模型勝率 主 %', 'number'],
+  ['draw_odds', '和局賠率（足球用，可空白）', 'number'], ['model_p_draw', '模型勝率 和 %', 'number'],
+  ['model_source', '勝率來源', 'select', ['manual', 'auto']],
+];
+const REPORT_FIELDS = [['why_bet', '決策邏輯'], ['pitcher_eval', '先發 / 核心對決'], ['batting_eval', '進攻火力'],
+  ['defense_eval', '守備 / 牛棚 / 籃板'], ['team_winrate', '勝率與對戰'], ['home_away', '主客場差異']];
+
+function openGameModal(id) {
+  const g = id ? S.games.find(x => x.id === id) : { sport: 'baseball', date: new Date().toISOString().slice(0, 10), time: '18:35', report: {} };
+  const f = GAME_FIELDS.map(([k, label, type, opt]) => {
+    const v = g[k] ?? '';
+    const input = type === 'select'
+      ? `<select class="inp" name="${k}">${opt.map(o => `<option ${o === v ? 'selected' : ''}>${o}</option>`).join('')}</select>`
+      : `<input class="inp" name="${k}" type="${type}" ${type === 'number' ? 'step="0.01"' : ''} value="${esc(v)}" placeholder="${esc(opt || '')}">`;
+    return `<label class="block"><span class="text-slate-400">${label}</span>${input}</label>`;
+  }).join('');
+  const r = REPORT_FIELDS.map(([k, label]) => `<label class="block sm:col-span-2"><span class="text-slate-400">${label}</span>
+    <textarea class="inp" rows="2" name="r_${k}">${esc((g.report || {})[k] || '')}</textarea></label>`).join('');
+  openModal(id ? '編輯賽事' : '新增賽事', `<form id="game-form" class="grid sm:grid-cols-2 gap-3 text-xs">${f}
+    <p class="sm:col-span-2 text-[11px] text-slate-500 pt-2 border-t border-slate-800">分析報告（選填）</p>${r}</form>
+    <div class="mt-4 flex justify-end gap-2"><button class="btn btn-sec" onclick="closeModal()">取消</button>
+    <button class="btn btn-pri" onclick="saveGame(${id ? `'${id}'` : 'null'})">儲存</button></div>`);
+}
+async function saveGame(id) {
+  const fd = new FormData(document.getElementById('game-form'));
+  const old = id ? S.games.find(x => x.id === id) : {};
+  const body = { report: {} };
+  for (const [k, v] of fd.entries()) {
+    if (k.startsWith('r_')) body.report[k.slice(2)] = v;
+    else if (['away_odds','home_odds','draw_odds','model_p_away','model_p_home','model_p_draw'].includes(k)) body[k] = v === '' ? null : parseFloat(v);
+    else body[k] = v;
+  }
+  if (id) Object.assign(body, { open_away_odds: old.open_away_odds, open_home_odds: old.open_home_odds, result: old.result, score: old.score || '' });
+  try {
+    await api(id ? '/api/games/' + encodeURIComponent(id) : '/api/games', { method: id ? 'PUT' : 'POST', body });
+    closeModal(); await loadGames(); toast('已儲存');
+  } catch (e) { toast('儲存失敗：' + e.message); }
+}
+
+function openResultModal(id) {
+  const g = S.games.find(x => x.id === id);
+  const opts = g.sides.map(r => `<option value="${r.side}" ${g.result === r.side ? 'selected' : ''}>${esc(r.team)} 勝</option>`).join('');
+  openModal('填入賽果', `<div class="grid grid-cols-2 gap-3 text-xs">
+    <label><span class="text-slate-400">勝方</span><select id="res-side" class="inp"><option value="">（清除賽果）</option>${opts}</select></label>
+    <label><span class="text-slate-400">比分（客-主）</span><input id="res-score" class="inp" value="${esc(g.score || '')}" placeholder="3-2"></label></div>
+    <p class="text-[11px] text-slate-500 mt-3">填入賽果後，此場會用於模型校準與回測，並可在「下注紀錄」自動結算。</p>
+    <div class="mt-4 flex justify-end gap-2"><button class="btn btn-sec" onclick="closeModal()">取消</button>
+    <button class="btn btn-pri" onclick="saveResult('${id}')">儲存</button></div>`);
+}
+async function saveResult(id) {
+  await patchGame(id, { result: document.getElementById('res-side').value, score: document.getElementById('res-score').value });
+  closeModal();
+}
+
+// ---------- bets ----------
+function openBetModal(gameId) {
+  const g = gameId ? S.games.find(x => x.id === gameId) : null;
+  const rec = g && g.recommendation;
+  const r = rec ? g.sides.find(x => x.side === rec.side) : null;
+  openModal('記錄下注', `<form id="bet-form" class="grid sm:grid-cols-2 gap-3 text-xs">
+    <input type="hidden" name="game_id" value="${g ? esc(g.id) : ''}"><input type="hidden" name="side" value="${rec ? rec.side : ''}">
+    <label><span class="text-slate-400">聯盟</span><input class="inp" name="league" value="${g ? esc(g.league) : ''}"></label>
+    <label><span class="text-slate-400">賽事</span><input class="inp" name="match" value="${g ? esc(g.away_team + ' @ ' + g.home_team) : ''}"></label>
+    <label><span class="text-slate-400">選項</span><input class="inp" name="selection" value="${rec ? esc(rec.team_name + ' 不讓分') : ''}" required></label>
+    <label><span class="text-slate-400">實際下注賠率</span><input class="inp" name="odds" type="number" step="0.01" value="${rec ? rec.odds : ''}"></label>
+    <label><span class="text-slate-400">注金（元）</span><input class="inp" name="stake" type="number" step="10" value="${rec ? rec.stake_amount : ''}"></label>
+    <label><span class="text-slate-400">模型勝率 %</span><input class="inp" name="model_p" type="number" step="0.1" value="${r ? r.model_p : ''}"></label>
+    <label class="sm:col-span-2"><span class="text-slate-400">備註</span><input class="inp" name="note"></label>
+    <label class="flex items-center gap-2"><input type="checkbox" name="is_parlay"> 這是串關</label>
+  </form>
+  <div class="mt-4 flex justify-end gap-2"><button class="btn btn-sec" onclick="closeModal()">取消</button>
+  <button class="btn btn-ok" onclick="saveBet()">儲存</button></div>`);
+}
+async function saveBet() {
+  const fd = Object.fromEntries(new FormData(document.getElementById('bet-form')).entries());
+  const odds = parseFloat(fd.odds), mp = fd.model_p ? parseFloat(fd.model_p) : null;
+  const body = { game_id: fd.game_id || null, side: fd.side || null, league: fd.league, match: fd.match, selection: fd.selection,
+    odds, stake: parseFloat(fd.stake), model_p: mp, ev_at_bet: mp ? +((mp / 100 * odds - 1) * 100).toFixed(2) : null,
+    bet_type: fd.is_parlay ? 'parlay' : 'single', note: fd.note || '' };
+  try { await api('/api/bets', { method: 'POST', body }); closeModal(); toast('已記錄下注'); loadBets(); loadGames(); }
+  catch (e) { toast('儲存失敗：' + e.message); }
+}
+async function loadBets() {
+  const j = await api('/api/bets'); S.bets = j.data;
+  const t = document.getElementById('bets-table');
+  if (!S.bets.length) { t.innerHTML = '<tr><td class="p-8 text-center text-slate-400">尚無下注紀錄。在賽事卡片按「記錄下注」即可加入。</td></tr>'; return; }
+  t.innerHTML = `<thead><tr><th>時間</th><th>賽事 / 選項</th><th class="text-right">賠率</th><th class="text-right">注金</th>
+    <th class="text-right">EV</th><th>狀態</th><th class="text-right">收盤賠率</th><th class="text-right">CLV</th><th class="text-right">損益</th><th></th></tr></thead><tbody>` +
+    S.bets.map(b => {
+      const clv = b.closing_odds ? (b.odds / b.closing_odds - 1) * 100 : null;
+      return `<tr>
+        <td class="num text-slate-400 whitespace-nowrap">${esc((b.created_at || '').slice(5, 16))}</td>
+        <td><p class="text-slate-400 text-[11px]">${esc(b.league)} ${esc(b.match)}${b.bet_type === 'parlay' ? '（串關）' : ''}</p><p class="font-semibold">${esc(b.selection)}</p></td>
+        <td class="num text-right">${Number(b.odds).toFixed(2)}</td>
+        <td class="num text-right">${money(b.stake)}</td>
+        <td class="num text-right ${cls(b.ev_at_bet)}">${b.ev_at_bet != null ? sgn(b.ev_at_bet) + '%' : '—'}</td>
+        <td><select class="inp !w-20 !py-0.5" onchange="patchBet('${b.id}',{status:this.value})">${Object.entries(STATUS_TXT).map(([k, v]) =>
+          `<option value="${k}" ${b.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select></td>
+        <td class="text-right"><input class="inp inp-sm num" type="number" step="0.01" value="${b.closing_odds ?? ''}" placeholder="—"
+          onchange="patchBet('${b.id}',{closing_odds:this.value?parseFloat(this.value):null})"></td>
+        <td class="num text-right ${clv == null ? 'mut' : cls(clv)}">${clv == null ? '—' : sgn(clv, 1) + '%'}</td>
+        <td class="num text-right font-semibold ${cls(b.profit)}">${b.status === 'pending' ? '—' : money(b.profit)}</td>
+        <td><button class="text-rose-400 hover:text-rose-300 text-xs" onclick="deleteBet('${b.id}')">刪除</button></td></tr>`;
+    }).join('') + '</tbody>';
+}
+async function patchBet(id, body) { try { await api('/api/bets/' + id, { method: 'PATCH', body }); await loadBets(); loadGames(); toast('已更新'); } catch (e) { toast(e.message); } }
+async function deleteBet(id) { if (!confirm('刪除這筆紀錄？')) return; await api('/api/bets/' + id, { method: 'DELETE' }); loadBets(); loadGames(); }
+async function autoSettle() { const j = await api('/api/bets/auto-settle', { method: 'POST' }); toast(`已自動結算 ${j.settled} 筆`); loadBets(); loadGames(); }
+
+// ---------- stats ----------
+async function loadStats() {
+  const j = await api('/api/stats'); const b = j.bets;
+  const kpi = (k, v, c = '', sub = '') => `<div class="kpi"><p class="text-[11px] text-slate-400">${k}</p><p class="text-lg font-bold num ${c}">${v}</p>${sub ? `<p class="text-[10px] text-slate-500">${sub}</p>` : ''}</div>`;
+  document.getElementById('stats-kpis').innerHTML = [
+    kpi('累積損益', money(b.profit), cls(b.profit), `理論期望 ${money(b.expected_profit)}`),
+    kpi('投資報酬率 ROI', sgn(b.roi) + '%', cls(b.roi), `總投注 ${money(b.staked)}`),
+    kpi('命中率', b.hit_rate + '%', '', `${b.wins} 勝 ${b.losses} 敗｜模型預期 ${b.expected_hit_rate}%`),
+    kpi('目前資金', money(b.current_bankroll), '', `未結算 ${b.pending} 筆 ${money(b.pending_stake)}`),
+    kpi('最大回撤', b.max_drawdown + '%', b.max_drawdown > 20 ? 'neg' : ''),
+    kpi('平均賠率', b.avg_odds || '—'),
+    kpi('平均 CLV', b.avg_clv == null ? '—' : sgn(b.avg_clv) + '%', b.avg_clv == null ? '' : cls(b.avg_clv), `${b.clv_count} 筆有收盤賠率`),
+    kpi('目前連續', b.streak_type ? `${b.streak} ${b.streak_type === 'won' ? '連勝' : '連敗'}` : '—', b.streak_type === 'won' ? 'pos' : (b.streak_type ? 'neg' : '')),
+  ].join('');
+
+  const ctx = document.getElementById('curve-chart');
+  if (S.chart) S.chart.destroy();
+  if (window.Chart) {
+    S.chart = new Chart(ctx, { type: 'line',
+      data: { labels: b.curve.map(c => c.label), datasets: [{ data: b.curve.map(c => c.bankroll), borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,.12)', fill: true, tension: .25, pointRadius: 2 }] },
+      options: { maintainAspectRatio: false, plugins: { legend: { display: false } },
+        scales: { x: { ticks: { color: '#64748b', maxTicksLimit: 8 }, grid: { color: '#1e293b' } }, y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } } } } });
+  }
+
+  document.getElementById('league-table').innerHTML = b.by_league.length ? `<table class="t"><thead><tr><th>聯盟</th><th class="text-right">注數</th><th class="text-right">命中</th><th class="text-right">損益</th><th class="text-right">ROI</th></tr></thead><tbody>` +
+    b.by_league.map(d => `<tr><td>${esc(d.league)}</td><td class="num text-right">${d.bets}</td><td class="num text-right">${d.hit_rate}%</td><td class="num text-right ${cls(d.profit)}">${money(d.profit)}</td><td class="num text-right ${cls(d.roi)}">${sgn(d.roi)}%</td></tr>`).join('') + '</tbody></table>'
+    : '<p class="text-xs text-slate-500">尚無已結算的下注。</p>';
+
+  const c = j.calibration;
+  document.getElementById('calib-box').innerHTML = !c.n ? '<p class="text-xs text-slate-500">尚無已填賽果的賽事。比賽結束後在賽事卡片按「填入賽果」，資料累積越多越有參考價值（建議 100 場以上）。</p>' :
+    `<div class="grid grid-cols-2 gap-3 mb-3">
+      <div class="kpi"><p class="text-[11px] text-slate-400">Brier（模型）</p><p class="num font-bold ${c.model_beats_market ? 'pos' : 'neg'}">${c.brier_model}</p></div>
+      <div class="kpi"><p class="text-[11px] text-slate-400">Brier（市場）</p><p class="num font-bold">${c.brier_market}</p></div></div>
+     <p class="text-xs mb-2 ${c.model_beats_market ? 'pos' : 'neg'}">${c.model_beats_market ? '✓ 在 ' + c.n + ' 場樣本中，模型比市場準。' : '✗ 在 ' + c.n + ' 場樣本中，模型沒有比市場準，+EV 訊號可能只是雜訊。'}</p>
+     <table class="t"><thead><tr><th>預測區間</th><th class="text-right">樣本</th><th class="text-right">平均預測</th><th class="text-right">實際發生</th></tr></thead><tbody>
+     ${c.buckets.map(x => `<tr><td>${x.bucket}</td><td class="num text-right">${x.n}</td><td class="num text-right">${x.predicted}%</td><td class="num text-right">${x.actual}%</td></tr>`).join('')}</tbody></table>`;
+
+  const bt = j.backtest;
+  document.getElementById('backtest-box').innerHTML = !bt.bets ? `<p class="text-xs text-slate-500">已結束賽事 ${bt.games_with_result} 場，其中沒有符合目前門檻的建議。</p>` :
+    `<div class="grid grid-cols-3 gap-3 mb-3">
+      <div class="kpi"><p class="text-[11px] text-slate-400">建議注數</p><p class="num font-bold">${bt.bets}（${bt.hit_rate}%）</p></div>
+      <div class="kpi"><p class="text-[11px] text-slate-400">平注 ROI</p><p class="num font-bold ${cls(bt.flat_roi)}">${sgn(bt.flat_roi)}%</p></div>
+      <div class="kpi"><p class="text-[11px] text-slate-400">凱利損益</p><p class="num font-bold ${cls(bt.kelly_profit)}">${money(bt.kelly_profit)}</p></div></div>
+     <div class="overflow-x-auto"><table class="t"><thead><tr><th>日期</th><th>選項</th><th class="text-right">賠率</th><th class="text-right">EV</th><th class="text-right">損益</th></tr></thead><tbody>
+     ${bt.details.map(d => `<tr><td class="num">${d.date}</td><td>${esc(d.pick)} ${d.won ? '✓' : '✗'}</td><td class="num text-right">${d.odds}</td><td class="num text-right">${sgn(d.ev)}%</td><td class="num text-right ${cls(d.pnl)}">${money(d.pnl)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+// ---------- parlay ----------
+function addLegFromGame(gid, side) {
+  const g = S.games.find(x => x.id === gid); const r = g.sides.find(x => x.side === side);
+  if (S.parlay.some(l => l.gid === gid)) { toast('同一場比賽不能重複串'); return; }
+  S.parlay.push({ gid, name: `${r.team}（${g.away_team} @ ${g.home_team}）`, odds: r.odds, p: r.model_p, fair_p: r.fair_p });
+  document.getElementById('parlay-count').textContent = `(${S.parlay.length})`;
+  document.getElementById('parlay-count-m').textContent = S.parlay.length;
+  toast('已加入串關，共 ' + S.parlay.length + ' 關');
+}
+function addManualLeg() { S.parlay.push({ gid: null, name: '手動輸入', odds: 1.8, p: 55, fair_p: null }); renderParlay(); }
+function renderParlay() {
+  document.getElementById('parlay-count').textContent = S.parlay.length ? `(${S.parlay.length})` : '';
+  document.getElementById('parlay-count-m').textContent = S.parlay.length || '';
+  document.getElementById('parlay-legs').innerHTML = S.parlay.length ? S.parlay.map((l, i) => `
+    <div class="flex flex-wrap items-center gap-2 p-2 rounded-lg bg-slate-900 border border-slate-800 text-xs">
+      <span class="flex-1 min-w-[10rem]">${i + 1}. ${esc(l.name)}</span>
+      <label>賠率 <input class="inp inp-sm num" type="number" step="0.01" value="${l.odds}" onchange="S.parlay[${i}].odds=parseFloat(this.value);calcParlay()"></label>
+      <label>勝率% <input class="inp inp-sm num" type="number" step="0.5" value="${l.p}" onchange="S.parlay[${i}].p=parseFloat(this.value);calcParlay()"></label>
+      <button class="text-rose-400" onclick="S.parlay.splice(${i},1);renderParlay()">移除</button></div>`).join('')
+    : '<p class="text-xs text-slate-500">尚未加入任何一關。到「賽事分析」按各隊的「＋ 加入串關」。</p>';
+  calcParlay();
+}
+async function calcParlay() {
+  const box = document.getElementById('parlay-result');
+  if (S.parlay.length < 2) { box.innerHTML = ''; return; }
+  try {
+    const j = await api('/api/parlay', { method: 'POST', body: { legs: S.parlay.map(l => ({ odds: l.odds, p: l.p, fair_p: l.fair_p })) } });
+    const d = j.data; const stake = Math.floor(S.bankroll * d.stake_pct / 100 / (S.settings.stake_round || 10)) * (S.settings.stake_round || 10);
+    box.innerHTML = `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+      <div class="kpi"><p class="text-[11px] text-slate-400">串關賠率</p><p class="num font-bold text-amber-300">${d.odds}</p></div>
+      <div class="kpi"><p class="text-[11px] text-slate-400">模型全中機率</p><p class="num font-bold">${d.model_p}%</p></div>
+      <div class="kpi"><p class="text-[11px] text-slate-400">串關 EV</p><p class="num font-bold ${cls(d.ev)}">${sgn(d.ev)}%</p></div>
+      <div class="kpi"><p class="text-[11px] text-slate-400">建議注金</p><p class="num font-bold">${d.stake_pct > 0 ? money(stake) : '不建議'}</p></div></div>
+      ${d.market_ev != null ? `<p class="text-[11px] text-slate-500 mt-2">若模型沒有優勢，這張串關的期望值是 <b class="neg">${sgn(d.market_ev)}%</b>（各關抽水相乘的結果）。</p>` : ''}`;
+  } catch (e) { box.innerHTML = `<p class="text-xs neg">${esc(e.message)}</p>`; }
+}
+
+// ---------- models ----------
+async function loadModels() {
+  const j = await api('/api/models'); const box = document.getElementById('models-box');
+  const mlb = j.data.find(m => m.league === 'MLB'); if (mlb && mlb.sp) S.lgEra = mlb.sp.lg_era;
+  const hasMLB = j.data.some(m => m.league === 'MLB');
+  const mlbCard = hasMLB ? '' : `<div class="card p-4 flex flex-wrap items-center justify-between gap-3">
+      <div><p class="font-bold text-sm">MLB 尚未建立模型</p><p class="text-[11px] text-slate-400">從 MLB 官方抓取近 6 季完整賽果（約 1.5 萬場）與所有先發投手逐場紀錄並訓練，約需 1~2 分鐘。</p></div>
+      <button class="btn btn-pri" onclick="fetchMLB(this)">抓取 MLB 歷史並訓練</button></div>`;
+  const cpblCard = `<div class="card p-4 space-y-2">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div><p class="font-bold text-sm">中華職棒官方資料</p>
+          <p class="text-[11px] text-slate-400">從中職官網抓 2019 起的賽程、比分、雙方先發與投手逐場紀錄（需台灣網路；為避免被官網封鎖會放慢速度，約 10~20 分鐘）。系統也會在每次同步時自動補一點缺少的投手紀錄。</p></div>
+        <button class="btn btn-pri" onclick="fetchCPBL(this)">從中職官網抓取並訓練</button>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 text-xs"><span class="text-slate-400">或匯入瀏覽器收集的檔案（cpbl_history_*.json）：</span>
+        <input type="file" accept=".json" class="inp !w-auto" onchange="importCPBLJson(this)"></div>
+    </div>`;
+  box.innerHTML = mlbCard + cpblCard + (j.data.length ? j.data.map(modelCard).join('') : '');
+}
+function modelCard(m) {
+  const v = m.validation;
+  const val = !m.trained ? `<p class="text-xs text-slate-400">已有 ${m.history_games} 場歷史資料，尚未訓練（至少 30 場）。</p>` : `
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div class="kpi"><p class="text-[11px] text-slate-400">驗證命中率</p><p class="num font-bold">${v.model.accuracy}%</p><p class="text-[10px] text-slate-500">基準 ${v.baseline.accuracy}%</p></div>
+      <div class="kpi"><p class="text-[11px] text-slate-400">Brier（越低越好）</p><p class="num font-bold ${v.beats_baseline ? 'pos' : 'neg'}">${v.model.brier}</p><p class="text-[10px] text-slate-500">基準 ${v.baseline.brier}</p></div>
+      <div class="kpi"><p class="text-[11px] text-slate-400">對數損失</p><p class="num font-bold">${v.model.logloss}</p><p class="text-[10px] text-slate-500">基準 ${v.baseline.logloss}</p></div>
+      <div class="kpi"><p class="text-[11px] text-slate-400">參數</p><p class="num text-xs">K=${m.params.k}・主場 ${m.params.hfa}・回歸 ${m.params.regress}</p><p class="text-[10px] text-slate-500">${m.history_games} 場歷史</p></div>
+    </div>
+    ${m.sp_note ? `<p class="text-[11px] text-amber-300">⚾ ${esc(m.sp_note)}；目前只用球隊實力。</p>` : ''}
+    ${v.elo_only ? `<div class="p-2.5 rounded-lg bg-indigo-950/30 border border-indigo-800/50 text-[11px] text-slate-300">
+      ⚾ <b>已加入先發投手近況</b>（${m.sp.pitchers} 位投手，紀錄至 ${esc(m.sp.logs_through || '')}；半衰期 ${m.sp.params.hl} 場、收縮 ${m.sp.params.prior} 局、每省 1 分 = ${m.sp.params.c} Elo）<br>
+      驗證季比較　純球隊 Elo：Brier <span class="num">${v.elo_only.brier}</span>・命中 ${v.elo_only.accuracy}%　→　加入先發投手：Brier <span class="num ${v.model.brier < v.elo_only.brier ? 'pos' : 'neg'}">${v.model.brier}</span>・命中 ${v.model.accuracy}%
+    </div>` : ''}
+    <p class="text-[11px] ${v.beats_baseline ? 'pos' : 'neg'}">驗證集：${esc(v.split)}（訓練時未使用）。${v.beats_baseline ? '✓ 模型優於基準（' + esc(v.baseline_desc) + '）' : '✗ 模型未優於基準，資料可能太少'}</p>
+    <div class="grid md:grid-cols-2 gap-4">
+      <div><p class="text-[11px] text-slate-400 mb-1">校準：模型說的機率 vs 實際發生</p><table class="t"><thead><tr><th>看好方機率</th><th class="text-right">場數</th><th class="text-right">預測</th><th class="text-right">實際</th></tr></thead><tbody>
+        ${v.calibration.map(c => `<tr><td>${c.range}</td><td class="num text-right">${c.n}</td><td class="num text-right">${c.predicted}%</td><td class="num text-right">${c.actual}%</td></tr>`).join('')}</tbody></table></div>
+      <div><p class="text-[11px] text-slate-400 mb-1">目前 Elo 排名</p><div class="max-h-72 overflow-y-auto"><table class="t"><tbody>
+        ${m.ratings.map((r, i) => `<tr><td class="num text-slate-500">${i + 1}</td><td>${esc(r.team)}</td><td class="num text-right">${Math.round(r.rating)}</td><td class="num text-right text-slate-500">${r.games} 場</td></tr>`).join('')}</tbody></table></div></div>
+    </div>`;
+  return `<div class="card p-4 space-y-3">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h3 class="font-bold">${esc(m.league)} <span class="text-[11px] text-slate-400 font-normal">${m.trained ? '訓練於 ' + esc(m.trained_at) + '・資料至 ' + esc(m.last_game) : ''}</span></h3>
+      <div class="flex gap-2">
+        ${m.league === 'MLB' ? '<button class="btn btn-sec" onclick="fetchMLB(this)">更新官方資料</button>' : ''}
+        <a class="btn btn-sec" href="/api/history/${encodeURIComponent(m.league)}.csv">下載歷史 CSV</a>
+        <button class="btn btn-pri" onclick="trainModel('${esc(m.league)}', this)">重新訓練</button>
+      </div>
+    </div>${val}</div>`;
+}
+async function fetchMLB(btn) {
+  btn.disabled = true; btn.textContent = '抓取中（約 1~2 分鐘）…';
+  try { const j = await api('/api/models/MLB/fetch', { method: 'POST', body: {} }); toast(`MLB：${j.games} 場比賽、${j.pitchers} 位先發投手、${j.logs} 筆逐場紀錄，已重新訓練`); loadModels(); loadGames(); }
+  catch (e) { toast(e.message); btn.disabled = false; btn.textContent = '重試'; }
+}
+async function fetchCPBL(btn) {
+  btn.disabled = true; btn.textContent = '抓取中（約 10~20 分鐘，請勿關閉程式）…';
+  try { const j = await api('/api/models/CPBL/fetch', { method: 'POST', body: {} });
+    toast(`中職：${j.games} 場比賽、${j.logs} 筆投手紀錄` + (j.failed ? `（${j.failed} 位投手暫時抓不到，之後自動補）` : '')); loadModels(); loadGames(); }
+  catch (e) { toast(e.message); btn.disabled = false; btn.textContent = '重試'; }
+}
+function importCPBLJson(inp) {
+  const f = inp.files[0]; if (!f) return; const r = new FileReader();
+  r.onload = async () => {
+    try { const j = await api('/api/cpbl/import-json', { method: 'POST', body: { payload: JSON.parse(r.result) } });
+      toast(`已匯入中職 ${j.games} 場、投手紀錄 ${j.logs} 筆` + (j.train_error ? '；' + j.train_error : '，已訓練')); loadModels(); loadGames(); }
+    catch (e) { toast('匯入失敗：' + e.message); }
+  };
+  r.readAsText(f, 'utf-8');
+}
+async function trainModel(lg, btn) {
+  btn.disabled = true; btn.textContent = '訓練中…';
+  try { await api('/api/models/' + encodeURIComponent(lg) + '/train', { method: 'POST' }); toast(lg + ' 已重新訓練'); loadModels(); loadGames(); }
+  catch (e) { toast(e.message); btn.disabled = false; btn.textContent = '重新訓練'; }
+}
+function readImpFile(inp) { const f = inp.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => document.getElementById('imp-text').value = r.result; r.readAsText(f, 'utf-8'); }
+function fillTemplate() {
+  document.getElementById('imp-text').value = 'date,away,home,away_score,home_score\n2026-03-28,中信兄弟,味全龍,3,5\n2026-03-29,統一7-ELEVEn獅,樂天桃猿,6,4';
+}
+async function importHistory() {
+  const lg = document.getElementById('imp-league').value.trim().toUpperCase();
+  if (!lg) { toast('請輸入聯盟代碼'); return; }
+  try {
+    const j = await api('/api/history/' + encodeURIComponent(lg) + '/import', { method: 'POST', body: { csv_text: document.getElementById('imp-text').value } });
+    toast(`讀到 ${j.parsed} 場，新增 ${j.added} 場` + (j.train_error ? '；' + j.train_error : '，已訓練'));
+    loadModels(); loadGames();
+  } catch (e) { toast('匯入失敗：' + e.message); }
+}
+
+// ---------- settings ----------
+const SETTING_FIELDS = [
+  ['bankroll', '起始資金（元）', 1000], ['kelly_fraction', '分數凱利（0~1）', 0.05], ['min_ev', '進場 EV 門檻（%）', 0.5],
+  ['min_edge', '最低勝率優勢（百分點）', 0.5], ['max_stake_pct', '單注上限（資金 %）', 0.5], ['stake_round', '注金進位單位（元）', 10],
+  ['min_odds', '最低賠率', 0.05], ['max_odds', '最高賠率', 0.1], ['daily_loss_limit_pct', '單日虧損上限（資金 %）', 1]];
+function renderSettings() {
+  const s = S.settings;
+  document.getElementById('settings-form').innerHTML = SETTING_FIELDS.map(([k, l, st]) =>
+    `<label><span class="text-slate-400">${l}</span><input class="inp num" name="${k}" type="number" step="${st}" value="${s[k]}"></label>`).join('') +
+    `<label><span class="text-slate-400">去水方法</span><select class="inp" name="devig_method">
+      <option value="power" ${s.devig_method === 'power' ? 'selected' : ''}>冪次法 power（建議）</option>
+      <option value="proportional" ${s.devig_method === 'proportional' ? 'selected' : ''}>等比例 proportional</option></select></label>`;
+  renderSettings2();
+}
+const ODDS_SPORTS = [['baseball_mlb', 'MLB 美職'], ['baseball_npb', 'NPB 日職'], ['baseball_kbo', 'KBO 韓職'],
+  ['basketball_nba', 'NBA'], ['basketball_wnba', 'WNBA'], ['basketball_euroleague', '歐洲籃球聯賽']];
+function renderSettings2() {
+  const s = S.settings; const chk = (k, l) => `<label class="flex items-center gap-2"><input type="checkbox" name="${k}" ${s[k] ? 'checked' : ''}> ${l}</label>`;
+  document.getElementById('settings-form2').innerHTML = `
+    <label><span class="text-slate-400">自動模型方式</span><select class="inp" name="model_mode">
+      <option value="blend" ${s.model_mode === 'blend' ? 'selected' : ''}>混合 Elo + 國際盤（建議）</option>
+      <option value="market" ${s.model_mode === 'market' ? 'selected' : ''}>只用國際盤共識</option>
+      <option value="elo" ${s.model_mode === 'elo' ? 'selected' : ''}>只用 Elo</option></select></label>
+    <label><span class="text-slate-400">混合時 Elo 權重（0~1）</span><input class="inp num" name="elo_weight" type="number" step="0.05" min="0" max="1" value="${s.elo_weight}"></label>
+    <label class="sm:col-span-2"><span class="text-slate-400">The Odds API 金鑰（免費申請：the-odds-api.com）</span><input class="inp num" name="odds_api_key" value="${esc(s.odds_api_key || '')}" placeholder="貼上金鑰"></label>
+    <label><span class="text-slate-400">國際盤更新間隔（分鐘，≥15）</span><input class="inp num" name="sync_interval_min" type="number" step="15" min="15" value="${s.sync_interval_min}"></label>
+    <label><span class="text-slate-400">博彩公司地區</span><input class="inp" name="odds_regions" value="${esc(s.odds_regions)}" placeholder="eu,uk,us"></label>
+    <div class="sm:col-span-2"><span class="text-slate-400">要抓國際盤的聯盟（每個聯盟每次更新扣 1 額度 × 地區數）</span>
+      <div class="flex flex-wrap gap-3 mt-1">${ODDS_SPORTS.map(([k, l]) => `<label class="flex items-center gap-1"><input type="checkbox" name="sport_${k}" ${(s.odds_sports || []).includes(k) ? 'checked' : ''}> ${l}</label>`).join('')}</div></div>
+    ${chk('auto_sync', '背景自動同步（每 30 分鐘檢查）')}
+    ${chk('mlb_auto_create', '自動建立 MLB 未來 3 天賽程（官方）')}
+    ${chk('odds_auto_create', '自動建立國際盤上的賽事（未來 2 天）')}
+    ${chk('fetch_scores', '非 MLB 聯盟用 The Odds API 抓賽果（每聯盟扣 2 額度）')}
+    ${chk('auto_retrain', '有新賽果時自動重新訓練 Elo')}`;
+}
+async function saveSettings() {
+  const fd = Object.fromEntries(new FormData(document.getElementById('settings-form')).entries());
+  const body = {}; for (const [k, v] of Object.entries(fd)) body[k] = k === 'devig_method' ? v : (k === 'stake_round' ? parseInt(v) : parseFloat(v));
+  const f2 = document.getElementById('settings-form2');
+  body.model_mode = f2.model_mode.value; body.elo_weight = parseFloat(f2.elo_weight.value);
+  if (f2.odds_api_key.value.trim()) body.odds_api_key = f2.odds_api_key.value.trim();
+  body.sync_interval_min = parseInt(f2.sync_interval_min.value); body.odds_regions = f2.odds_regions.value.trim() || 'eu';
+  body.odds_sports = ODDS_SPORTS.map(x => x[0]).filter(k => f2['sport_' + k].checked);
+  ['auto_sync', 'mlb_auto_create', 'odds_auto_create', 'fetch_scores', 'auto_retrain'].forEach(k => body[k] = f2[k].checked);
+  try { await api('/api/settings', { method: 'PUT', body }); await loadGames(); renderSettings(); toast('設定已儲存，所有建議已重新計算'); }
+  catch (e) { toast('儲存失敗：' + e.message); }
+}
+
+// ---------- 手機使用 ----------
+async function loadAccess() {
+  let a; try { a = await api('/api/access'); } catch (e) { return; }
+  S.access = a;
+  const t = a.tunnel || {};
+  const isLocal = a.kind === 'local';
+  const kindTxt = { local: '這台電腦', lan: '同一個 Wi-Fi 的裝置', remote: '外部網路（遠端通道）' }[a.kind];
+  const lan = a.lan_urls[0];
+  document.getElementById('mobile-card').innerHTML = `
+    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+      <h2 class="font-bold">📱 手機使用</h2>
+      <span class="text-[11px] text-slate-400">目前連線來源：${kindTxt}${isLocal ? '' : ` ・ <a href="javascript:void(0)" class="text-indigo-300" onclick="logout()">登出</a>`}</span>
+    </div>
+    <div class="grid sm:grid-cols-2 gap-4 text-xs">
+      <div class="space-y-2">
+        <p class="font-semibold text-slate-200">① 在家（同一個 Wi-Fi）</p>
+        ${lan ? `<p class="text-slate-400">手機掃描或輸入：</p><p class="num text-indigo-300 break-all">${esc(lan)}</p><div class="qr" id="qr-lan"></div>`
+              : '<p class="text-slate-500">找不到電腦的區網 IP</p>'}
+        <p class="text-[11px] text-slate-500">打不開時：電腦第一次啟動若跳出 Windows 防火牆視窗，請勾「私人網路」並允許。手機與電腦需連同一台分享器。</p>
+      </div>
+      <div class="space-y-2">
+        <p class="font-semibold text-slate-200">② 外出（4G/5G）</p>
+        ${!a.pin_set ? '<p class="text-amber-300">請先在下方設定 PIN，才能開啟遠端連線。</p>' : ''}
+        ${!t.installed ? '<p class="text-slate-400">尚未安裝通道程式：請在程式資料夾執行「<b>啟用遠端連線.bat</b>」（會從 Cloudflare 官方下載 cloudflared，約 60MB），完成後回來按開啟。</p>' : ''}
+        ${t.running && t.url ? `<p class="text-slate-400">外部網址（每次重開程式會改變）：</p><p class="num text-emerald-300 break-all">${esc(t.url)}</p><div class="qr" id="qr-remote"></div>`
+          : t.running ? '<p class="text-slate-400">通道啟動中…</p>' : ''}
+        ${t.error ? `<p class="text-rose-300">${esc(t.error)}</p>` : ''}
+        <div class="flex gap-2">
+          ${t.running ? '<button class="btn btn-del" onclick="setTunnel(false)">關閉遠端連線</button>'
+            : `<button class="btn btn-pri" ${a.pin_set && t.installed ? '' : 'disabled style="opacity:.5"'} onclick="setTunnel(true, this)">開啟遠端連線</button>`}
+          ${t.running && t.url ? `<button class="btn btn-sec" onclick="navigator.clipboard.writeText('${esc(t.url)}');toast('已複製網址')">複製網址</button>` : ''}
+        </div>
+      </div>
+    </div>
+    <div class="mt-4 pt-4 border-t border-slate-800 text-xs space-y-2">
+      <p class="font-semibold text-slate-200">🔒 PIN 碼 <span class="text-[11px] font-normal ${a.pin_set ? 'pos' : 'text-amber-300'}">${a.pin_set ? '已設定' : '未設定（同 Wi-Fi 的裝置可直接使用）'}</span></p>
+      <div class="flex flex-wrap gap-2 items-end">
+        ${a.pin_set && !isLocal ? '<label>目前 PIN<input id="pin-cur" class="inp num !w-28" type="password" inputmode="numeric" maxlength="8"></label>' : ''}
+        <label>${a.pin_set ? '新' : '設定'} PIN（4~8 位數字）<input id="pin-new" class="inp num !w-28" type="password" inputmode="numeric" maxlength="8"></label>
+        <button class="btn btn-pri" onclick="savePin()">${a.pin_set ? '更換 PIN' : '設定 PIN'}</button>
+        ${a.pin_set && isLocal ? '<button class="btn btn-del" onclick="clearPin()">清除 PIN</button>' : ''}
+      </div>
+      <p class="text-[11px] text-slate-500">設定 PIN 後，所有手機與外部連線都要先輸入 PIN（電腦本機不用）。登入可維持 30 天；更換 PIN 會讓所有裝置重新登入。</p>
+    </div>
+    <div class="mt-4 pt-4 border-t border-slate-800 text-[11px] text-slate-400 leading-relaxed">
+      <p class="font-semibold text-slate-200 text-xs mb-1">加到手機主畫面（像 App 一樣全螢幕使用）</p>
+      <p>・iPhone：用 Safari 開網址 → 分享 → 「加入主畫面」</p>
+      <p>・Android：用 Chrome 開網址 → 右上 ⋮ → 「加到主畫面／安裝應用程式」</p>
+      <p>・電腦需保持開機且程式執行中，手機才連得上。</p>
+    </div>`;
+  const mk = (id, text) => { const el = document.getElementById(id); if (el && window.QRCode) new QRCode(el, { text, width: 148, height: 148, correctLevel: QRCode.CorrectLevel.M }); };
+  if (lan) mk('qr-lan', lan);
+  if (t.running && t.url) mk('qr-remote', t.url);
+}
+async function savePin() {
+  const pin = document.getElementById('pin-new').value.trim(), cur = document.getElementById('pin-cur')?.value || '';
+  try { await api('/api/access/pin', { method: 'POST', body: { pin, current: cur } }); toast('PIN 已設定'); loadAccess(); }
+  catch (e) { toast(e.message); }
+}
+async function clearPin() {
+  if (!confirm('清除 PIN 會一併關閉遠端連線，確定？')) return;
+  await api('/api/access/pin', { method: 'POST', body: { clear: true } }); toast('已清除 PIN'); loadAccess();
+}
+async function setTunnel(enable, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '啟動中（約 10 秒）…'; }
+  try { const j = await api('/api/access/tunnel', { method: 'POST', body: { enable } });
+    toast(enable ? (j.tunnel.url ? '遠端連線已開啟' : (j.tunnel.error || '啟動失敗')) : '遠端連線已關閉'); }
+  catch (e) { toast(e.message); }
+  loadAccess();
+}
+async function logout() { await fetch('/api/logout', { method: 'POST' }); location.href = '/login'; }
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+
+// ---------- init ----------
+(async () => {
+  await loadGames();
+  let t = 'games'; try { t = localStorage.getItem('bm_tab') || 'games'; } catch (e) {}
+  if (t !== 'games') showTab(t);
+  setInterval(loadGames, 5 * 60 * 1000); // 每 5 分鐘自動更新倒數與狀態
+})();
+</script>
+</body>
+</html>

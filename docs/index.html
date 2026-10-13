@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="robots" content="noindex, nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BallMetrics">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/favicon-32.png">
+<title>BallMetrics AI</title>
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  body { background:#0b0f19; color:#f1f5f9; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft JhengHei",Roboto,sans-serif; }
+  * { -webkit-tap-highlight-color: transparent; }
+  .num { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-variant-numeric: tabular-nums; }
+  .inp { background:#0f172a; border:1px solid #334155; border-radius:.5rem; padding:.35rem .5rem; color:#f1f5f9; font-size:.8rem; width:100%; }
+  .inp:focus { outline:none; border-color:#6366f1; }
+  .inp-sm { width:4.6rem; padding:.15rem .35rem; text-align:right; }
+  .btn { border-radius:.5rem; padding:.4rem .8rem; font-size:.75rem; font-weight:600; transition:.15s; }
+  .btn-pri { background:#4f46e5; color:#fff; } .btn-pri:hover { background:#6366f1; }
+  .btn-sec { background:#1e293b; color:#cbd5e1; border:1px solid #334155; } .btn-sec:hover { background:#334155; }
+  .btn-ok { background:#059669; color:#fff; } .btn-ok:hover { background:#10b981; }
+  .btn-del { background:transparent; color:#f87171; border:1px solid #7f1d1d; } .btn-del:hover { background:#450a0a; }
+  .tab { padding:.6rem .9rem; font-size:.8rem; color:#94a3b8; border-bottom:2px solid transparent; white-space:nowrap; }
+  .tab.active { color:#fff; border-color:#6366f1; }
+  .card { background:#0f172a; border:1px solid #1e293b; border-radius:1rem; }
+  .kpi { background:#0f172a; border:1px solid #1e293b; border-radius:.75rem; padding:.75rem 1rem; }
+  .pos { color:#34d399; } .neg { color:#f87171; } .mut { color:#94a3b8; }
+  table.t { width:100%; font-size:.75rem; border-collapse:collapse; }
+  table.t th { text-align:left; color:#94a3b8; font-weight:500; padding:.5rem; border-bottom:1px solid #1e293b; white-space:nowrap; }
+  table.t td { padding:.5rem; border-bottom:1px solid #1e293b; vertical-align:middle; }
+  .bar { height:6px; border-radius:3px; background:#1e293b; overflow:hidden; }
+  #toast { transition: opacity .3s; }
+  header { padding-top: env(safe-area-inset-top); }
+  #bottom-nav { padding-bottom: env(safe-area-inset-bottom); }
+  #bottom-nav button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: .45rem 0 .35rem; font-size: .65rem; color: #94a3b8; }
+  #bottom-nav button .ic { font-size: 1.15rem; line-height: 1; filter: grayscale(.6); }
+  #bottom-nav button.active { color: #fff; } #bottom-nav button.active .ic { filter: none; }
+  @media (max-width: 767px) {
+    main { padding-bottom: calc(5rem + env(safe-area-inset-bottom)) !important; padding-left: .75rem !important; padding-right: .75rem !important; }
+    .btn { padding: .5rem .75rem; } .inp { font-size: 16px; } .inp-sm { width: 4.4rem; }
+    #modal > div { margin: 0 !important; min-height: 100%; border-radius: 0; max-width: none; padding-top: calc(1.25rem + env(safe-area-inset-top)); }
+    #modal { padding: 0 !important; }
+    #toast { bottom: calc(5rem + env(safe-area-inset-bottom)); }
+  }
+</style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+<!-- ===================== 解鎖畫面 ===================== -->
+<div id="lock" class="fixed inset-0 z-[70] bg-[#0b0f19] grid place-items-center p-6">
+  <div class="w-full max-w-xs text-center">
+    <img src="icons/icon-192.png" class="w-16 h-16 rounded-2xl mx-auto mb-3" alt="">
+    <h1 class="text-xl font-bold">BallMetrics AI</h1>
+    <p class="text-sm text-slate-400 mb-5">資料已加密，請輸入網站密碼</p>
+    <form id="lock-form" class="space-y-3">
+      <input id="lock-pw" type="password" autocomplete="current-password" class="inp !text-base !py-2.5 text-center" placeholder="網站密碼">
+      <label class="flex items-center justify-center gap-2 text-xs text-slate-400"><input type="checkbox" id="lock-remember" checked> 在這台裝置記住密碼</label>
+      <button class="btn btn-pri w-full !py-2.5 !text-sm" id="lock-btn">解鎖</button>
+      <p id="lock-err" class="text-sm text-rose-400 min-h-[1.25rem]"></p>
+    </form>
+  </div>
+</div>
+
+<header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40">
+  <div class="max-w-6xl mx-auto px-4 pt-3 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <img src="icons/icon-192.png" class="w-9 h-9 rounded-lg" alt="">
+      <div>
+        <h1 class="font-bold text-white leading-tight">BallMetrics AI</h1>
+        <p class="text-[11px] text-slate-400" id="hdr-sync">—</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="text-right">
+        <p class="text-[10px] text-slate-400">目前資金</p>
+        <p class="text-sm font-bold text-emerald-400 num" id="hdr-bank">—</p>
+      </div>
+      <button class="btn btn-sec" onclick="reloadData()" title="重新載入最新資料">⟳</button>
+    </div>
+  </div>
+  <nav class="max-w-6xl mx-auto px-2 hidden md:flex overflow-x-auto" id="tabs">
+    <button class="tab active" data-tab="games">賽事分析</button>
+    <button class="tab" data-tab="bets">下注紀錄</button>
+    <button class="tab" data-tab="stats">績效統計</button>
+    <button class="tab" data-tab="parlay">串關試算 <span class="pc text-indigo-300"></span></button>
+    <button class="tab" data-tab="models">模型中心</button>
+    <button class="tab" data-tab="settings">設定</button>
+  </nav>
+</header>
+
+<main class="flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
+  <div id="risk-banner" class="hidden p-3 rounded-xl bg-rose-950/50 border border-rose-800 text-rose-200 text-sm">⚠ 今日虧損已達設定上限，系統已暫停下注建議。</div>
+
+  <section id="tab-games" class="space-y-4">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="games-kpis"></div>
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div class="flex flex-wrap gap-2" id="league-filters"></div>
+      <div class="flex flex-wrap items-center gap-3 text-xs">
+        <label class="flex items-center gap-1.5 text-slate-300"><input type="checkbox" id="only-rec" onchange="renderGames()"> 只看建議</label>
+        <label class="flex items-center gap-1.5 text-slate-300"><input type="checkbox" id="hide-settled" checked onchange="renderGames()"> 隱藏已結束</label>
+        <button class="btn btn-pri" onclick="openGameModal()">＋ 自訂賽事</button>
+      </div>
+    </div>
+    <p class="text-[11px] text-slate-500" id="rule-line"></p>
+    <div id="games-container" class="space-y-4"></div>
+  </section>
+
+  <section id="tab-bets" class="space-y-4 hidden">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h2 class="font-bold">下注紀錄 <span class="text-[11px] font-normal text-slate-500">（只存在這台裝置）</span></h2>
+      <div class="flex flex-wrap gap-2">
+        <button class="btn btn-sec" onclick="openBetModal()">＋ 手動新增</button>
+        <button class="btn btn-sec" onclick="exportCSV()">匯出 CSV</button>
+      </div>
+    </div>
+    <div class="card overflow-x-auto"><table class="t" id="bets-table"></table></div>
+  </section>
+
+  <section id="tab-stats" class="space-y-4 hidden">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="stats-kpis"></div>
+    <div class="grid md:grid-cols-3 gap-4">
+      <div class="card p-4 md:col-span-2"><h3 class="text-sm font-semibold mb-2">資金曲線</h3><div class="h-64"><canvas id="curve-chart"></canvas></div></div>
+      <div class="card p-4"><h3 class="text-sm font-semibold mb-2">分聯盟績效</h3><div id="league-table" class="overflow-x-auto"></div></div>
+    </div>
+  </section>
+
+  <section id="tab-parlay" class="space-y-4 hidden">
+    <div class="card p-4 space-y-3">
+      <div class="flex items-center justify-between"><h2 class="font-bold">串關試算</h2><button class="btn btn-sec" onclick="addManualLeg()">＋ 手動新增一關</button></div>
+      <p class="text-[11px] text-slate-500">從賽事卡片按「加入串關」帶入。串關會把每一關的抽水相乘放大。</p>
+      <div id="parlay-legs" class="space-y-2"></div><div id="parlay-result"></div>
+    </div>
+  </section>
+
+  <section id="tab-models" class="space-y-4 hidden"><div id="models-box" class="space-y-4"></div></section>
+
+  <section id="tab-settings" class="hidden space-y-4">
+    <div class="card p-5 max-w-2xl">
+      <h2 class="font-bold mb-4">參數設定 <span class="text-[11px] font-normal text-slate-500">（存在這台裝置）</span></h2>
+      <form id="settings-form" class="grid sm:grid-cols-2 gap-4 text-xs"></form>
+      <div class="mt-5"><button class="btn btn-pri" onclick="saveSettings()">儲存設定</button></div>
+    </div>
+    <div class="card p-5 max-w-2xl text-xs space-y-3">
+      <h2 class="font-bold text-sm">資料備份與同步</h2>
+      <p class="text-slate-400">你的運彩賠率、自訂先發、下注紀錄、設定只存在這台裝置的瀏覽器。換手機或想在電腦上看同一份紀錄，請用「匯出備份」再到另一台「匯入備份」。</p>
+      <div class="flex flex-wrap gap-2">
+        <button class="btn btn-sec" onclick="exportBackup()">匯出備份</button>
+        <label class="btn btn-sec cursor-pointer">匯入備份<input type="file" accept=".json" class="hidden" onchange="importBackup(this)"></label>
+        <button class="btn btn-del" onclick="lockNow()">登出（忘記這台裝置的密碼）</button>
+      </div>
+      <div id="sync-box" class="text-[11px] text-slate-500 pt-2 border-t border-slate-800"></div>
+    </div>
+    <div class="card p-5 max-w-2xl text-[11px] text-slate-400 leading-relaxed">
+      <p class="font-semibold text-slate-200 text-xs mb-1">加到手機主畫面</p>
+      <p>・iPhone：Safari →「分享」→「加入主畫面」　・Android：Chrome →「⋮」→「加到主畫面」</p>
+    </div>
+  </section>
+
+  <p class="text-[11px] text-slate-600 text-center pt-4">本系統為統計分析工具，不保證獲利。運彩含莊家抽水，長期而言多數下注為負期望值；請量力而為，未滿 18 歲不得購買運動彩券。</p>
+</main>
+
+<nav id="bottom-nav" class="md:hidden fixed bottom-0 inset-x-0 z-40 bg-slate-900/95 backdrop-blur border-t border-slate-800 flex">
+  <button data-tab="games" class="active"><span class="ic">🏟️</span>賽事</button>
+  <button data-tab="bets"><span class="ic">📝</span>紀錄</button>
+  <button data-tab="stats"><span class="ic">📊</span>統計</button>
+  <button data-tab="parlay"><span class="ic">🔗</span>串關<span class="pc text-indigo-300 text-[10px]"></span></button>
+  <button data-tab="models"><span class="ic">🧠</span>模型</button>
+  <button data-tab="settings"><span class="ic">⚙️</span>設定</button>
+</nav>
+
+<div id="modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-start justify-center p-4 overflow-y-auto">
+  <div class="card w-full max-w-2xl p-5 my-8 relative">
+    <button class="absolute top-3 right-4 text-slate-400 hover:text-white text-xl" onclick="closeModal()">×</button>
+    <h3 id="modal-title" class="font-bold mb-4"></h3><div id="modal-body"></div>
+  </div>
+</div>
+<div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 bg-slate-800 border border-slate-700 text-sm px-4 py-2 rounded-lg opacity-0 pointer-events-none z-[80]"></div>
+
+<script>
+// ============================================================================
+// 本機儲存（只在這台裝置）
+// ============================================================================
+const LS_KEY = 'bm_local_v1', PW_KEY = 'bm_pw_v1';
+const DEFAULT_SETTINGS = { bankroll: 100000, kelly_fraction: 0.25, min_ev: 3, min_edge: 2, max_stake_pct: 3, min_odds: 1.3, max_odds: 4,
+  devig_method: 'power', stake_round: 10, daily_loss_limit_pct: 10, model_mode: 'blend', elo_weight: 0.3 };
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
+let L = (() => { try { return JSON.parse(lsGet(LS_KEY) || '{}'); } catch (e) { return {}; } })();
+L = { settings: {}, odds: {}, starters: {}, manual: {}, source: {}, results: {}, bets: [], custom: [], ...L };
+function saveLocal() { lsSet(LS_KEY, JSON.stringify(L)); }
+const S = { data: null, games: [], league: 'ALL', parlay: [], chart: null };
+const settings = () => ({ ...DEFAULT_SETTINGS, ...L.settings });
+
+// ============================================================================
+// 解密（PBKDF2-SHA256 → AES-GCM，與雲端 Python 相同）
+// ============================================================================
+const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function decryptPayload(obj, pw) {
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt: b64(obj.salt), iterations: obj.iter || 250000, hash: 'SHA-256' },
+    base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(obj.iv) }, key, b64(obj.ct));
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+let PASSWORD = lsGet(PW_KEY) || '';
+async function fetchData(pw) {
+  const res = await fetch('data.enc.json?t=' + Date.now(), { cache: 'no-store' });
+  if (!res.ok) throw new Error(res.status === 404 ? '網站資料尚未產生（請確認已設定 BM_PASSWORD 並執行過更新）' : '下載資料失敗');
+  const obj = await res.json();
+  try { return await decryptPayload(obj, pw); } catch (e) { throw new Error('密碼錯誤'); }
+}
+document.getElementById('lock-form').onsubmit = async e => {
+  e.preventDefault();
+  const pw = document.getElementById('lock-pw').value, btn = document.getElementById('lock-btn'), err = document.getElementById('lock-err');
+  if (!pw) return;
+  btn.disabled = true; btn.textContent = '解密中…'; err.textContent = '';
+  try {
+    S.data = await fetchData(pw); PASSWORD = pw;
+    if (document.getElementById('lock-remember').checked) lsSet(PW_KEY, pw); else lsDel(PW_KEY);
+    unlock();
+  } catch (x) { err.textContent = x.message; }
+  btn.disabled = false; btn.textContent = '解鎖';
+};
+function unlock() { document.getElementById('lock').classList.add('hidden'); afterLoad(); }
+function lockNow() { lsDel(PW_KEY); PASSWORD = ''; location.reload(); }
+async function reloadData() {
+  try { S.data = await fetchData(PASSWORD); afterLoad(); toast('已載入最新資料'); } catch (e) { toast(e.message); }
+}
+
+// ============================================================================
+// 計算引擎（與電腦版 engine.py / model.py 相同邏輯）
+// ============================================================================
+const SIDE_LABEL = { away: '客隊', home: '主隊', draw: '和局' };
+const implied = o => o > 1 ? 1 / o : 0;
+function devig(odds, method) {
+  const imps = odds.map(implied), total = imps.reduce((a, b) => a + b, 0);
+  if (total <= 0) return imps.map(() => 0);
+  if (method !== 'power' || total <= 1) return imps.map(i => i / total);
+  let lo = 1, hi = 10;
+  for (let n = 0; n < 100; n++) { const k = (lo + hi) / 2; const s = imps.reduce((a, i) => a + i ** k, 0); if (s > 1) lo = k; else hi = k; }
+  const k = (lo + hi) / 2, ps = imps.map(i => i ** k), s = ps.reduce((a, b) => a + b, 0);
+  return ps.map(p => p / s);
+}
+const ev = (p, o) => p * o - 1;
+const kelly = (p, o) => o > 1 ? (p * o - 1) / (o - 1) : 0;
+const roundStake = (a, u) => Math.floor(a / Math.max(u || 1, 1)) * Math.max(u || 1, 1);
+function normName(s) {
+  s = (s || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[.\-・．]/g, ' ');
+  s = s.split('(')[0].split('（')[0];
+  return s.split(/\s+/).filter(Boolean).join(' ');
+}
+const UNANNOUNCED = new Set(['', '官方未公布', 'tbd', '未定']);
+const pIndex = {};   // league -> {byId, byName}
+function indexPitchers() {
+  for (const [lg, m] of Object.entries(S.data.models || {})) {
+    const byId = {}, byName = {};
+    for (const p of (m.sp?.pitchers || [])) { if (p.pid) byId[p.pid] = p; byName[normName(p.name)] = p; }
+    pIndex[lg] = { byId, byName };
+  }
+}
+function spLookup(lg, name, pid) {
+  const idx = pIndex[lg]; if (!idx) return null;
+  if (pid && idx.byId[pid]) return idx.byId[pid];
+  const p = idx.byName[normName(name)];
+  if (p) return p;
+  return { name, pid: null, unmatched: true, fip: null, ip_exp: null, runs_saved: 0, elo: 0 };
+}
+const pHome = (rh, ra, hfa) => 1 / (1 + 10 ** (-(rh + hfa - ra) / 400));
+function eloPredict(g, starters) {
+  const m = S.data.models?.[g.league]; if (!m) return null;
+  const R = m.ratings, a = g.away_team, h = g.home_team;
+  if (R[a] == null || R[h] == null) return null;
+  const hfa = m.params.hfa, base = pHome(R[h], R[a], hfa);
+  let adj = 0, spA = null, spH = null, paused = false;
+  if (m.sp && !UNANNOUNCED.has(normName(starters.away)) && !UNANNOUNCED.has(normName(starters.home))) {
+    const idA = starters.away === g.away_sp_src ? g.away_sp_id : null, idH = starters.home === g.home_sp_src ? g.home_sp_id : null;
+    spA = spLookup(g.league, starters.away, idA); spH = spLookup(g.league, starters.home, idH);
+    if (spA.unmatched || spH.unmatched) paused = true; else adj = spH.elo - spA.elo;
+  }
+  const ph = pHome(R[h], R[a], hfa + adj);
+  return { p_home: ph, p_away: 1 - ph, team_only_home: base, r_home: R[h], r_away: R[a], adj, spA, spH, paused };
+}
+function allGames() { return [...(S.data?.games || []), ...L.custom]; }
+function analyze(g) {
+  const s = settings();
+  const st = { away: L.starters[g.id]?.away ?? g.away_starter ?? '', home: L.starters[g.id]?.home ?? g.home_starter ?? '' };
+  const lo = L.odds[g.id] || {};
+  const odds = { away: +(lo.away ?? g.away_odds ?? 0) || 0, home: +(lo.home ?? g.home_odds ?? 0) || 0, draw: +(lo.draw ?? g.draw_odds ?? 0) || 0 };
+  const sides = ['away', 'home', ...(odds.draw > 1 ? ['draw'] : [])];
+  const oddsArr = sides.map(sd => odds[sd]);
+  const warnings = [];
+  const badOdds = oddsArr.some(o => o <= 1);
+  if (badOdds) warnings.push('尚未輸入運彩賠率');
+  const imps = oddsArr.map(implied), overround = imps.reduce((a, b) => a + b, 0), fair = devig(oddsArr, s.devig_method);
+  // 勝率來源
+  const elo = eloPredict(g, st);
+  const mk = g.market || null;
+  const source = L.source[g.id] || g.model_source || 'auto';
+  let model = null, used = '';
+  if (source === 'manual') {
+    const man = L.manual[g.id] || {};
+    const ma = man.away ?? g.model_p_away, mh = man.home ?? g.model_p_home;
+    if (ma != null && mh != null) { model = [ma / 100, mh / 100]; used = '手動輸入'; }
+  } else {
+    const eh = elo ? elo.p_home * 100 : null, mh = mk ? mk.p_home : null, w = +s.elo_weight;
+    let ph = null;
+    if (s.model_mode === 'elo') [ph, used] = eh != null ? [eh, 'Elo'] : [mh, '國際盤共識（無 Elo）'];
+    else if (s.model_mode === 'market') [ph, used] = mh != null ? [mh, '國際盤共識'] : [eh, 'Elo（無國際盤）'];
+    else if (eh != null && mh != null) [ph, used] = [w * eh + (1 - w) * mh, `混合：Elo ${Math.round(w * 100)}% + 國際盤 ${Math.round((1 - w) * 100)}%`];
+    else if (eh != null) [ph, used] = [eh, 'Elo（無國際盤資料）'];
+    else if (mh != null) [ph, used] = [mh, '國際盤共識（無 Elo）'];
+    if (ph != null) model = [1 - ph / 100, ph / 100];
+  }
+  if (!model) { warnings.push('沒有可用的勝率，請改手動輸入'); model = fair.slice(0, 2).length ? fair : [0.5, 0.5]; used = used || '無'; }
+  if (sides.length === 3) { const d = (L.manual[g.id]?.draw ?? 0) / 100; model = [model[0] * (1 - d), model[1] * (1 - d), d]; }
+  const bank = currentBankroll();
+  const rows = sides.map((sd, i) => {
+    const o = oddsArr[i], p = model[i] || 0, e = o > 1 ? ev(p, o) : -1, kf = o > 1 ? kelly(p, o) : 0;
+    const stakePct = Math.max(0, Math.min(kf * s.kelly_fraction, s.max_stake_pct / 100));
+    return { side: sd, label: SIDE_LABEL[sd], team: sd === 'draw' ? '和局' : g[sd + '_team'], odds: o,
+      fair_p: fair[i] * 100, model_p: p * 100, edge: (p - fair[i]) * 100, ev: e * 100, stake_pct: stakePct * 100,
+      stake_amount: roundStake(bank * stakePct, s.stake_round), target_odds: p > 0 ? (1 + s.min_ev / 100) / p : null };
+  });
+  const fails = [], qualified = [];
+  for (const r of rows) {
+    const f = [];
+    if (r.ev < s.min_ev) f.push(`EV ${sgn(r.ev)}% 未達 +${s.min_ev}%`);
+    if (r.edge < s.min_edge) f.push(`優勢 ${sgn(r.edge)}% 未達 +${s.min_edge}%`);
+    if (!(r.odds >= s.min_odds && r.odds <= s.max_odds)) f.push(`賠率 ${r.odds || '—'} 不在 ${s.min_odds}~${s.max_odds}`);
+    if (r.stake_amount <= 0) f.push('建議注金為 0');
+    if (f.length) fails.push({ team: r.team, reasons: f }); else qualified.push(r);
+  }
+  const result = L.results[g.id]?.result || g.result, score = L.results[g.id]?.score || g.score;
+  const status = result ? 'settled' : (new Date(g.date + 'T' + g.time + ':00+08:00') <= new Date() ? 'started' : 'upcoming');
+  let rec = null;
+  if (qualified.length && !badOdds) {
+    const b = qualified.reduce((a, c) => c.ev > a.ev ? c : a);
+    rec = { side: b.side, team_name: b.team, odds: b.odds, ev: b.ev, edge: b.edge, kelly_pct: b.stake_pct, stake_amount: b.stake_amount,
+      tier: b.ev >= 8 ? '強' : b.ev >= 5 ? '中' : '弱' };
+    if (status !== 'upcoming') rec.note = '已開賽/已結束，僅供參考';
+    if (riskBlock()) { rec.blocked = true; rec.note = '今日虧損已達上限，暫停建議'; }
+  }
+  let summary;
+  if (badOdds) summary = '請輸入運彩賠率。' + rows.filter(r => r.target_odds).map(r => `${r.team} 勝率 ${r.model_p.toFixed(1)}%，賠率需 ≥ ${r.target_odds.toFixed(2)}`).join('；') + ' 才達進場門檻。';
+  else if (rec) { const r = rows.find(x => x.side === rec.side); summary = `${r.team} 賠率 ${r.odds.toFixed(2)}，運彩去水 ${r.fair_p.toFixed(1)}%，模型 ${r.model_p.toFixed(1)}%（優勢 ${sgn(r.edge, 1)}%），EV ${sgn(r.ev)}%，以 ${s.kelly_fraction} 凱利配置 ${r.stake_pct.toFixed(2)}% 資金。`; }
+  else { const b = rows.reduce((a, c) => c.ev > a.ev ? c : a); summary = `最佳選項 ${b.team} EV 僅 ${sgn(b.ev)}%，未達 +${s.min_ev}% 門檻；賠率需升至 ${b.target_odds?.toFixed(2)} 以上才值得進場。`; }
+  return { ...g, starters: st, sides: rows, rec, fails, warnings, status, result, score, elo, mk, source, used,
+    vig: (overround - 1) * 100, payout: overround ? 100 / overround : 0, summary };
+}
+
+// ---- 下注統計 ----
+function profitOf(b) { return b.status === 'won' ? b.stake * (b.odds - 1) : b.status === 'lost' ? -b.stake : 0; }
+function currentBankroll() { return settings().bankroll + L.bets.reduce((a, b) => a + profitOf(b), 0); }
+function todayStr() { return new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10); }
+function riskBlock() {
+  const s = settings(), lim = s.bankroll * s.daily_loss_limit_pct / 100;
+  const today = L.bets.filter(b => (b.settled_at || '').slice(0, 10) === todayStr()).reduce((a, b) => a + profitOf(b), 0);
+  return lim > 0 && today <= -lim;
+}
+function betStats() {
+  const s = settings();
+  const settled = L.bets.filter(b => ['won', 'lost', 'push', 'void'].includes(b.status)).sort((a, b) => (a.settled_at || a.created_at).localeCompare(b.settled_at || b.created_at));
+  const decided = settled.filter(b => b.status === 'won' || b.status === 'lost');
+  const staked = decided.reduce((a, b) => a + b.stake, 0), profit = settled.reduce((a, b) => a + profitOf(b), 0);
+  const wins = decided.filter(b => b.status === 'won').length;
+  const expected = decided.reduce((a, b) => a + b.stake * (b.ev_at_bet || 0) / 100, 0);
+  let bank = s.bankroll, peak = bank, dd = 0; const curve = [{ label: '起始', v: bank }];
+  for (const b of settled) { bank += profitOf(b); peak = Math.max(peak, bank); dd = Math.max(dd, (peak - bank) / peak); curve.push({ label: (b.settled_at || '').slice(5, 10), v: Math.round(bank) }); }
+  let streak = 0, type = null;
+  for (const b of [...decided].reverse()) { if (!type) { type = b.status; streak = 1; } else if (b.status === type) streak++; else break; }
+  const clvs = L.bets.filter(b => b.closing_odds).map(b => (b.odds / b.closing_odds - 1) * 100);
+  const byLg = {};
+  for (const b of decided) { const d = byLg[b.league || '其他'] ||= { league: b.league || '其他', bets: 0, wins: 0, staked: 0, profit: 0 }; d.bets++; d.wins += b.status === 'won'; d.staked += b.stake; d.profit += profitOf(b); }
+  const pending = L.bets.filter(b => b.status === 'pending');
+  return { staked, profit, wins, losses: decided.length - wins, hit: decided.length ? wins / decided.length * 100 : 0,
+    expHit: decided.length ? decided.reduce((a, b) => a + (b.model_p || 0), 0) / decided.length : 0,
+    roi: staked ? profit / staked * 100 : 0, expected, dd: dd * 100, curve, streak, type,
+    clv: clvs.length ? clvs.reduce((a, b) => a + b, 0) / clvs.length : null, clvN: clvs.length,
+    avgOdds: decided.length ? decided.reduce((a, b) => a + b.odds, 0) / decided.length : 0,
+    pending: pending.length, pendingStake: pending.reduce((a, b) => a + b.stake, 0), bank: s.bankroll + profit,
+    byLg: Object.values(byLg).map(d => ({ ...d, roi: d.staked ? d.profit / d.staked * 100 : 0, hit: d.wins / d.bets * 100 })) };
+}
+function autoSettle() {
+  let n = 0;
+  for (const b of L.bets) {
+    if (b.status !== 'pending' || !b.game_id || !b.side || b.bet_type === 'parlay') continue;
+    const g = allGames().find(x => x.id === b.game_id); if (!g) continue;
+    const r = L.results[g.id]?.result || g.result; if (!r) continue;
+    b.status = r === b.side ? 'won' : (r === 'draw' && b.side !== 'draw' ? 'void' : 'lost'); b.settled_at = nowStr(); n++;
+  }
+  if (n) { saveLocal(); toast(`已依賽果自動結算 ${n} 筆下注`); }
+}
+
+// ============================================================================
+// 工具
+// ============================================================================
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = n => (n < 0 ? '-' : '') + '$' + Math.abs(Math.round(n || 0)).toLocaleString();
+const sgn = (n, d = 2) => (n > 0 ? '+' : '') + Number(n || 0).toFixed(d);
+const cls = n => n > 0 ? 'pos' : (n < 0 ? 'neg' : 'mut');
+const nowStr = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 19).replace('T', ' ');
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(t._h); t._h = setTimeout(() => t.style.opacity = 0, 2400); }
+function countdown(g) {
+  const diff = new Date(g.date + 'T' + g.time + ':00+08:00') - new Date(); if (diff <= 0) return '';
+  const h = Math.floor(diff / 3600000), d = Math.floor(h / 24);
+  return d >= 1 ? `${d} 天 ${h % 24} 小時後` : `${h} 小時 ${Math.floor(diff % 3600000 / 60000)} 分後`;
+}
+const LEAGUE_STYLE = { MLB: 'bg-blue-950 text-blue-300 border-blue-800', CPBL: 'bg-amber-950 text-amber-300 border-amber-800',
+  TPBL: 'bg-emerald-950 text-emerald-300 border-emerald-800', NBA: 'bg-orange-950 text-orange-300 border-orange-800' };
+
+// ============================================================================
+// 分頁
+// ============================================================================
+document.querySelectorAll('.tab, #bottom-nav button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+function showTab(name) {
+  document.querySelectorAll('.tab, #bottom-nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  ['games', 'bets', 'stats', 'parlay', 'models', 'settings'].forEach(t => document.getElementById('tab-' + t).classList.toggle('hidden', t !== name));
+  window.scrollTo({ top: 0 }); lsSet('bm_tab', name);
+  ({ games: renderGames, bets: renderBets, stats: renderStats, parlay: renderParlay, models: renderModels, settings: renderSettings })[name]();
+}
+function afterLoad() {
+  indexPitchers(); autoSettle();
+  const st = S.data.status || {};
+  document.getElementById('hdr-sync').textContent = `資料更新：${S.data.generated_at || '—'}` + ((st.errors || []).length ? ' ⚠' : '');
+  showTab(lsGet('bm_tab') || 'games');
+}
+function refreshHeader() {
+  document.getElementById('hdr-bank').textContent = money(currentBankroll());
+  document.getElementById('risk-banner').classList.toggle('hidden', !riskBlock());
+  document.querySelectorAll('.pc').forEach(e => e.textContent = S.parlay.length ? `(${S.parlay.length})` : '');
+}
+
+// ============================================================================
+// 賽事
+// ============================================================================
+function renderGames() {
+  refreshHeader();
+  const s = settings();
+  document.getElementById('rule-line').textContent = `進場條件：EV ≥ +${s.min_ev}%、優勢 ≥ +${s.min_edge}%、賠率 ${s.min_odds}~${s.max_odds}｜${s.kelly_fraction} 凱利、單注上限 ${s.max_stake_pct}%`;
+  S.games = allGames().map(analyze).sort((a, b) => (a.status === 'settled') - (b.status === 'settled') || (a.date + a.time).localeCompare(b.date + b.time));
+  const leagues = ['ALL', ...new Set(S.games.map(g => g.league))];
+  document.getElementById('league-filters').innerHTML = leagues.map(l => `<button class="btn ${S.league === l ? 'btn-pri' : 'btn-sec'}" onclick="S.league='${esc(l)}';renderGames()">${l === 'ALL' ? '全部' : esc(l)}</button>`).join('');
+  const up = S.games.filter(g => g.status === 'upcoming'), recs = up.filter(g => g.rec && !g.rec.blocked);
+  const tot = recs.reduce((a, g) => a + g.rec.stake_amount, 0), priced = S.games.filter(g => g.sides.every(r => r.odds > 1));
+  const avgVig = priced.length ? priced.reduce((a, g) => a + g.vig, 0) / priced.length : 0;
+  const needOdds = up.filter(g => g.sides.some(r => !(r.odds > 1))).length;
+  document.getElementById('games-kpis').innerHTML = [
+    ['未開賽', up.length + ' 場', '', needOdds ? `${needOdds} 場待輸入運彩賠率` : ''], ['建議下單', recs.length + ' 場', recs.length ? 'pos' : 'mut', ''],
+    ['建議總注金', money(tot), '', `佔資金 ${(tot / currentBankroll() * 100 || 0).toFixed(1)}%`], ['平均抽水', priced.length ? avgVig.toFixed(2) + '%' : '—', 'neg', '']
+  ].map(([k, v, c, sub]) => `<div class="kpi"><p class="text-[11px] text-slate-400">${k}</p><p class="text-lg font-bold num ${c}">${v}</p>${sub ? `<p class="text-[10px] text-slate-500">${sub}</p>` : ''}</div>`).join('');
+  const onlyRec = document.getElementById('only-rec').checked, hide = document.getElementById('hide-settled').checked;
+  const list = S.games.filter(g => (S.league === 'ALL' || g.league === S.league) && (!onlyRec || g.rec) && (!hide || g.status !== 'settled'));
+  document.getElementById('games-container').innerHTML = list.length ? list.map(gameCard).join('')
+    : '<div class="card p-8 text-center text-slate-400 text-sm">沒有符合條件的賽事。</div>';
+}
+function spBox(v, label, lgEra) {
+  if (!v) return '';
+  const r = v.recent;
+  const rec = r ? `近 ${r.starts} 場先發 ${r.ip} 局 ERA <b class="num">${r.era ?? '—'}</b>・${r.k}K ${r.bb}BB ${r.hr}HR` : '無近期先發紀錄';
+  const games = r ? r.games.map(x => `${x.date} ${x.ip}局${x.er}責${x.k}K`).join('｜') : '';
+  return `<div class="p-2 rounded bg-slate-900/70 border border-slate-800">
+    <div class="flex justify-between gap-2"><span>${label}：<b>${esc(v.name)}</b>${v.unmatched ? ' <span class="text-rose-300">（查無此投手，請確認先發；本場不做投手調整）</span>' : (v.known ? '' : ' <span class="text-amber-300">（樣本不足）</span>')}</span>
+      <span class="num ${v.unmatched ? 'mut' : cls(v.elo)}">${v.unmatched ? '—' : sgn(v.elo, 0) + ' Elo'}</span></div>
+    ${v.unmatched ? '' : `<p class="text-slate-400">近況 FIP <b class="num text-slate-200">${v.fip}</b>（聯盟約 ${lgEra}）・預期 ${v.ip_exp} 局・每場省 <span class="num ${cls(v.runs_saved)}">${sgn(v.runs_saved)}</span> 分</p>
+    <p class="text-slate-400">${rec}</p>${games ? `<p class="text-slate-500 num text-[10px]">${esc(games)}</p>` : ''}`}</div>`;
+}
+function modelPanel(g) {
+  const e = g.elo, mk = g.mk, m = S.data.models?.[g.league];
+  const eloTxt = e ? `<span>Elo：客 <b class="num">${(e.p_away * 100).toFixed(1)}%</b>／主 <b class="num">${(e.p_home * 100).toFixed(1)}%</b> <span class="text-slate-500 num">(${Math.round(e.r_away)} vs ${Math.round(e.r_home)})</span></span>`
+    : '<span class="text-slate-500">Elo：此聯盟/隊伍沒有模型</span>';
+  const mkTxt = mk ? `<span>國際盤共識：客 <b class="num">${mk.p_away.toFixed(1)}%</b>／主 <b class="num">${mk.p_home.toFixed(1)}%</b> <span class="text-slate-500">（${mk.books} 家｜最佳 ${mk.best_away ?? '—'} / ${mk.best_home ?? '—'}｜${esc((mk.updated_at || '').slice(5))}）</span></span>`
+    : `<span class="text-slate-500">國際盤：${S.data.status?.has_odds_key ? '尚無此場賠率' : '未設定 ODDS_API_KEY'}</span>`;
+  let sp = '';
+  if (m?.sp && (g.league === 'MLB' || g.league === 'CPBL')) {
+    sp = e && e.spA && e.spH ? `<div class="pt-1 space-y-1"><p>⚾ 先發投手調整${e.paused ? '（暫停）' : ''}：主隊 <b class="num ${cls(e.adj)}">${sgn(e.adj, 1)} Elo</b>，主隊勝率 ${(e.team_only_home * 100).toFixed(1)}% → <b class="num">${(e.p_home * 100).toFixed(1)}%</b></p>
+      <div class="grid md:grid-cols-2 gap-1.5">${spBox(e.spA, '客', m.sp.lg_era)}${spBox(e.spH, '主', m.sp.lg_era)}</div></div>`
+      : '<p class="text-slate-500">先發投手：尚未公布，目前只用球隊實力（可按「改先發」自行輸入）</p>';
+  }
+  const auto = g.source !== 'manual';
+  return `<div class="p-2.5 rounded-lg bg-slate-950/50 border border-slate-800 text-[11px] text-slate-300 space-y-1">
+    <div class="flex flex-wrap items-center justify-between gap-2"><span class="font-semibold text-indigo-300">勝率來源：${auto ? '自動（' + esc(g.used) + '）' : '手動輸入'}</span>
+      <button class="btn btn-sec !py-0.5" onclick="setSource('${g.id}','${auto ? 'manual' : 'auto'}')">${auto ? '改為手動' : '改用自動模型'}</button></div>
+    <div class="flex flex-col gap-0.5">${eloTxt}${mkTxt}</div>${sp}</div>`;
+}
+function gameCard(g) {
+  const rec = g.rec, lc = LEAGUE_STYLE[g.league] || 'bg-slate-800 text-slate-300 border-slate-700';
+  let stTag = g.status === 'settled' ? `<span class="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-300">已結束 ${esc(g.score || '')}・${esc(g.result === 'draw' ? '和局' : g[g.result + '_team'])} 勝</span>`
+    : g.status === 'started' ? '<span class="text-[11px] px-2 py-0.5 rounded bg-rose-950 text-rose-300">已開賽</span>' : `<span class="text-[11px] text-slate-400">${countdown(g)}</span>`;
+  const auto = g.source !== 'manual';
+  const side = r => {
+    const picked = rec && rec.side === r.side, starter = r.side === 'draw' ? '' : g.starters[r.side];
+    return `<div class="p-3 rounded-xl ${picked ? 'bg-emerald-950/30 border border-emerald-500/50' : 'bg-slate-800/40 border border-slate-800'}">
+      <div class="flex justify-between items-start gap-2"><div class="min-w-0"><p class="text-[11px] text-slate-400">${r.label}${picked ? ' · <span class="pos font-semibold">建議</span>' : ''}</p>
+        <h4 class="font-bold text-white truncate">${esc(r.team)}</h4>${starter ? `<p class="text-[11px] text-slate-400 truncate">${g.sport === 'basketball' ? '核心' : '先發'}：${esc(starter)}</p>` : ''}</div>
+        <div class="text-right shrink-0"><label class="text-[10px] text-slate-500 block">運彩賠率</label>
+          <input class="inp inp-sm num text-amber-300 font-bold" type="number" inputmode="decimal" step="0.01" min="1.01" value="${r.odds > 1 ? r.odds.toFixed(2) : ''}" placeholder="輸入" onchange="setOdds('${g.id}','${r.side}',this.value)"></div></div>
+      <div class="grid grid-cols-4 gap-1 mt-3 text-center">
+        <div><p class="text-[10px] text-slate-500">運彩去水</p><p class="text-xs num">${r.odds > 1 ? r.fair_p.toFixed(1) + '%' : '—'}</p></div>
+        <div><p class="text-[10px] text-slate-500">模型勝率</p><input class="inp num text-center text-indigo-300 !px-1 !py-0 text-xs" type="number" inputmode="decimal" step="0.5" value="${r.model_p.toFixed(1)}" ${auto ? 'disabled' : ''} onchange="setManual('${g.id}','${r.side}',this.value)"></div>
+        <div><p class="text-[10px] text-slate-500">優勢</p><p class="text-xs num ${r.odds > 1 ? cls(r.edge) : 'mut'}">${r.odds > 1 ? sgn(r.edge, 1) + '%' : '—'}</p></div>
+        <div><p class="text-[10px] text-slate-500">EV</p><p class="text-xs num font-bold ${r.odds > 1 ? cls(r.ev) : 'mut'}">${r.odds > 1 ? sgn(r.ev) + '%' : '—'}</p></div></div>
+      <div class="flex justify-between items-center mt-2 text-[10px] text-slate-500"><span>達標賠率 ≥ <b class="num text-slate-300">${r.target_odds ? r.target_odds.toFixed(2) : '—'}</b></span>
+        <button class="text-indigo-300" onclick="addLeg('${g.id}','${r.side}')">＋ 加入串關</button></div></div>`;
+  };
+  let bar;
+  if (rec) {
+    const tc = rec.tier === '強' ? 'bg-emerald-500 text-black' : rec.tier === '中' ? 'bg-emerald-700 text-white' : 'bg-emerald-900 text-emerald-200';
+    bar = `<div class="p-3 rounded-xl border ${rec.blocked ? 'border-rose-800 bg-rose-950/30' : 'border-emerald-700/60 bg-emerald-950/20'} flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-2 flex-wrap"><span class="text-[11px] font-bold px-2 py-0.5 rounded ${tc}">${rec.tier}訊號</span><span class="font-bold text-emerald-300">🎯 ${esc(rec.team_name)} @ ${rec.odds.toFixed(2)}</span>${rec.note ? `<span class="text-[11px] text-rose-300">${esc(rec.note)}</span>` : ''}</div>
+      <div class="flex items-center gap-4"><div class="text-right"><p class="text-xs num font-bold pos">${sgn(rec.ev)}% EV</p><p class="text-[10px] text-slate-400">優勢 ${sgn(rec.edge, 1)}%</p></div>
+        <div class="text-right"><p class="text-xs num font-bold">${money(rec.stake_amount)}</p><p class="text-[10px] text-slate-400">資金 ${rec.kelly_pct.toFixed(2)}%</p></div>
+        ${rec.blocked || g.status !== 'upcoming' ? '' : `<button class="btn btn-ok" onclick="openBetModal('${g.id}')">記錄下注</button>`}</div></div>`;
+  } else {
+    bar = `<div class="p-3 rounded-xl border border-slate-800 bg-slate-950/60"><div class="flex flex-wrap justify-between gap-2"><span class="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300">觀望（無顯著 +EV）</span>
+      ${g.sides.every(r => r.odds > 1) ? `<span class="text-[11px] text-slate-500 num">抽水 ${g.vig.toFixed(2)}%｜返還率 ${g.payout.toFixed(2)}%</span>` : ''}</div>
+      <details class="mt-2 text-[11px] text-slate-400"><summary class="cursor-pointer">為什麼不建議？</summary><ul class="mt-1 pl-4 list-disc">${g.fails.map(x => `<li><b>${esc(x.team)}</b>：${x.reasons.map(esc).join('、')}</li>`).join('')}</ul></details></div>`;
+  }
+  const rp = g.report || {}, isBB = g.sport === 'basketball';
+  const secs = [['🎯', '決策邏輯', rp.why_bet], ['⚡', isBB ? '核心對決' : '先發投手', rp.pitcher_eval], ['🔥', '進攻', rp.batting_eval], ['🛡', '防守/牛棚', rp.defense_eval], ['📈', '勝率與對戰', rp.team_winrate], ['📍', '主客場', rp.home_away]].filter(x => x[2]);
+  const a = g.sides[0], h = g.sides[1];
+  return `<article class="card p-4 space-y-3">
+    <div class="flex flex-wrap items-center justify-between gap-2"><div class="flex flex-wrap items-center gap-2">
+      <span class="px-2 py-0.5 rounded text-[11px] font-semibold border ${lc}">${esc(g.league)}${g.stage ? ' · ' + esc(g.stage) : ''}</span>${g.venue ? `<span class="text-[11px] text-slate-400">📍 ${esc(g.venue)}</span>` : ''}${stTag}${g.custom ? '<span class="text-[10px] text-slate-500">自訂</span>' : ''}</div>
+      <span class="text-xs num text-slate-300 bg-slate-800/60 px-2 py-1 rounded border border-slate-700/60">🕒 ${esc(g.date)} ${esc(g.time)}</span></div>
+    ${g.warnings.filter(w => w !== '尚未輸入運彩賠率').map(w => `<p class="text-[11px] text-amber-300">⚠ ${esc(w)}</p>`).join('')}
+    <div class="grid md:grid-cols-${g.sides.length} gap-3">${g.sides.map(side).join('')}</div>
+    <div class="space-y-1"><div class="flex justify-between text-[10px] text-slate-500"><span>運彩去水 ${a.odds > 1 ? a.fair_p.toFixed(1) + '%' : '—'}</span><span>客 ← 勝率 → 主</span><span>${h.odds > 1 ? h.fair_p.toFixed(1) + '%' : '—'}</span></div>
+      <div class="bar"><div class="h-full bg-slate-500" style="width:${a.odds > 1 ? a.fair_p : 0}%"></div></div><div class="bar"><div class="h-full bg-indigo-500" style="width:${a.model_p}%"></div></div>
+      <div class="flex justify-between text-[10px] text-indigo-300"><span>模型 ${a.model_p.toFixed(1)}%</span><span>${h.model_p.toFixed(1)}%</span></div></div>
+    ${modelPanel(g)}${bar}
+    <p class="text-[11px] text-slate-400 leading-relaxed">🤖 ${esc(g.summary)}</p>
+    ${secs.length ? `<details class="border-t border-slate-800 pt-2"><summary class="cursor-pointer text-xs font-semibold text-slate-300">查看分析（${secs.length} 項）</summary><div class="mt-2 space-y-2 text-xs">${secs.map(([i, t, b]) => `<div class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800"><p class="font-bold text-indigo-300 mb-1">${i} ${t}</p><p class="text-slate-300">${esc(b)}</p></div>`).join('')}</div></details>` : ''}
+    <div class="flex flex-wrap gap-2 justify-end pt-1">
+      ${g.sport === 'baseball' ? `<button class="btn btn-sec" onclick="openStarterModal('${g.id}')">改先發</button>` : ''}
+      <button class="btn btn-sec" onclick="openResultModal('${g.id}')">${g.result ? '修改賽果' : '填入賽果'}</button>
+      ${g.custom ? `<button class="btn btn-del" onclick="deleteCustom('${g.id}')">刪除</button>` : ''}</div></article>`;
+}
+function setOdds(id, side, v) { (L.odds[id] ||= {})[side] = v === '' ? null : parseFloat(v); saveLocal(); renderGames(); toast('已重新計算'); }
+function setManual(id, side, v) { (L.manual[id] ||= {})[side] = parseFloat(v); const o = side === 'away' ? 'home' : 'away'; if (side !== 'draw') L.manual[id][o] = 100 - parseFloat(v); saveLocal(); renderGames(); }
+function setSource(id, src) {
+  L.source[id] = src;
+  if (src === 'manual' && !L.manual[id]) { const g = S.games.find(x => x.id === id); L.manual[id] = { away: +g.sides[0].model_p.toFixed(1), home: +g.sides[1].model_p.toFixed(1) }; }
+  saveLocal(); renderGames();
+}
+function deleteCustom(id) { if (!confirm('刪除這場自訂賽事？')) return; L.custom = L.custom.filter(g => g.id !== id); saveLocal(); renderGames(); }
+
+// ---- Modal ----
+function openModal(title, html) { document.getElementById('modal-title').textContent = title; document.getElementById('modal-body').innerHTML = html; const m = document.getElementById('modal'); m.classList.remove('hidden'); m.classList.add('flex'); }
+function closeModal() { const m = document.getElementById('modal'); m.classList.add('hidden'); m.classList.remove('flex'); }
+document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+const field = (label, html) => `<label class="block"><span class="text-slate-400">${label}</span>${html}</label>`;
+function openStarterModal(id) {
+  const g = S.games.find(x => x.id === id);
+  const names = Object.values(S.data.models?.[g.league]?.sp?.pitchers || {}).map(p => p.name);
+  openModal('修改先發投手', `<div class="grid grid-cols-2 gap-3 text-xs">
+    ${field('客隊先發（' + esc(g.away_team) + '）', `<input id="st-away" class="inp" list="pl" value="${esc(g.starters.away)}">`)}
+    ${field('主隊先發（' + esc(g.home_team) + '）', `<input id="st-home" class="inp" list="pl" value="${esc(g.starters.home)}">`)}</div>
+    <datalist id="pl">${names.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+    <p class="text-[11px] text-slate-500 mt-2">輸入時會提示資料庫裡的投手名字。只會改這台裝置上的顯示與計算。</p>
+    <div class="mt-4 flex justify-end gap-2"><button class="btn btn-sec" onclick="delete L.starters['${id}'];saveLocal();closeModal();renderGames()">恢復官方</button><button class="btn btn-pri" onclick="L.starters['${id}']={away:document.getElementById('st-away').value.trim(),home:document.getElementById('st-home').value.trim()};saveLocal();closeModal();renderGames()">儲存</button></div>`);
+}
+function openResultModal(id) {
+  const g = S.games.find(x => x.id === id);
+  openModal('填入賽果', `<div class="grid grid-cols-2 gap-3 text-xs">
+    ${field('勝方', `<select id="res-side" class="inp"><option value="">（清除）</option>${g.sides.map(r => `<option value="${r.side}" ${g.result === r.side ? 'selected' : ''}>${esc(r.team)} 勝</option>`).join('')}</select>`)}
+    ${field('比分（客-主）', `<input id="res-score" class="inp" value="${esc(g.score || '')}" placeholder="3-2">`)}</div>
+    <div class="mt-4 flex justify-end gap-2"><button class="btn btn-sec" onclick="closeModal()">取消</button><button class="btn btn-pri" onclick="saveResult('${id}')">儲存</button></div>`);
+}
+function saveResult(id) {
+  const r = document.getElementById('res-side').value, sc = document.getElementById('res-score').value;
+  if (r) L.results[id] = { result: r, score: sc }; else delete L.results[id];
+  saveLocal(); closeModal(); autoSettle(); renderGames();
+}
+function openGameModal() {
+  const d = new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
+  openModal('新增自訂賽事', `<form id="gf" class="grid grid-cols-2 gap-3 text-xs">
+    ${field('聯盟', '<input name="league" class="inp" placeholder="TPBL / NBA…" required>')}${field('運動', '<select name="sport" class="inp"><option>baseball</option><option>basketball</option><option>soccer</option><option>other</option></select>')}
+    ${field('日期', `<input name="date" type="date" class="inp" value="${d}">`)}${field('時間', '<input name="time" type="time" class="inp" value="18:35">')}
+    ${field('客隊', '<input name="away_team" class="inp" required>')}${field('主隊', '<input name="home_team" class="inp" required>')}
+    ${field('客隊賠率', '<input name="away_odds" type="number" step="0.01" class="inp">')}${field('主隊賠率', '<input name="home_odds" type="number" step="0.01" class="inp">')}
+    ${field('模型勝率 客 %', '<input name="model_p_away" type="number" step="0.5" class="inp">')}${field('模型勝率 主 %', '<input name="model_p_home" type="number" step="0.5" class="inp">')}</form>
+    <p class="text-[11px] text-slate-500 mt-2">自訂賽事只存在這台裝置。MLB、中職會自動出現，不用手動新增。</p>
+    <div class="mt-4 flex justify-end gap-2"><button class="btn btn-sec" onclick="closeModal()">取消</button><button class="btn btn-pri" onclick="saveCustom()">儲存</button></div>`);
+}
+function saveCustom() {
+  const f = Object.fromEntries(new FormData(document.getElementById('gf')).entries());
+  if (!f.league || !f.away_team || !f.home_team) { toast('請填聯盟與隊名'); return; }
+  const id = 'C_' + Date.now();
+  L.custom.push({ id, custom: true, league: f.league.toUpperCase(), sport: f.sport, stage: '', date: f.date, time: f.time, venue: '', away_team: f.away_team, home_team: f.home_team,
+    away_starter: '', home_starter: '', model_source: 'manual' });
+  if (f.away_odds || f.home_odds) L.odds[id] = { away: parseFloat(f.away_odds) || null, home: parseFloat(f.home_odds) || null };
+  if (f.model_p_away || f.model_p_home) L.manual[id] = { away: parseFloat(f.model_p_away) || 50, home: parseFloat(f.model_p_home) || 50 };
+  L.source[id] = 'manual'; saveLocal(); closeModal(); renderGames();
+}
+
+// ============================================================================
+// 下注紀錄
+// ============================================================================
+const STATUS_TXT = { pending: '未結算', won: '贏', lost: '輸', push: '走盤', void: '取消' };
+function openBetModal(gid) {
+  const g = gid ? S.games.find(x => x.id === gid) : null, rec = g?.rec, r = rec ? g.sides.find(x => x.side === rec.side) : null;
+  openModal('記錄下注', `<form id="bf" class="grid grid-cols-2 gap-3 text-xs">
+    <input type="hidden" name="game_id" value="${g ? esc(g.id) : ''}"><input type="hidden" name="side" value="${rec ? rec.side : ''}">
+    ${field('聯盟', `<input class="inp" name="league" value="${g ? esc(g.league) : ''}">`)}${field('賽事', `<input class="inp" name="match" value="${g ? esc(g.away_team + ' @ ' + g.home_team) : ''}">`)}
+    ${field('選項', `<input class="inp" name="selection" value="${rec ? esc(rec.team_name + ' 不讓分') : ''}">`)}${field('實際賠率', `<input class="inp" name="odds" type="number" step="0.01" inputmode="decimal" value="${rec ? rec.odds : ''}">`)}
+    ${field('注金（元）', `<input class="inp" name="stake" type="number" step="10" inputmode="numeric" value="${rec ? rec.stake_amount : ''}">`)}${field('模型勝率 %', `<input class="inp" name="model_p" type="number" step="0.1" value="${r ? r.model_p.toFixed(1) : ''}">`)}
+    <label class="col-span-2">${'<span class="text-slate-400">備註</span>'}<input class="inp" name="note"></label>
+    <label class="flex items-center gap-2"><input type="checkbox" name="parlay"> 這是串關</label></form>
+    <div class="mt-4 flex justify-end gap-2"><button class="btn btn-sec" onclick="closeModal()">取消</button><button class="btn btn-ok" onclick="saveBet()">儲存</button></div>`);
+}
+function saveBet() {
+  const f = Object.fromEntries(new FormData(document.getElementById('bf')).entries());
+  const odds = parseFloat(f.odds), stake = parseFloat(f.stake), mp = f.model_p ? parseFloat(f.model_p) : null;
+  if (!(odds > 1) || !(stake > 0) || !f.selection) { toast('請填選項、賠率（>1）與注金'); return; }
+  L.bets.unshift({ id: Date.now().toString(36), game_id: f.game_id || null, side: f.side || null, league: f.league, match: f.match, selection: f.selection,
+    odds, stake, model_p: mp, ev_at_bet: mp ? +((mp / 100 * odds - 1) * 100).toFixed(2) : null, bet_type: f.parlay ? 'parlay' : 'single',
+    note: f.note || '', status: 'pending', created_at: nowStr(), settled_at: null, closing_odds: null });
+  saveLocal(); closeModal(); toast('已記錄下注'); refreshHeader();
+}
+function renderBets() {
+  refreshHeader();
+  const t = document.getElementById('bets-table');
+  if (!L.bets.length) { t.innerHTML = '<tr><td class="p-8 text-center text-slate-400">尚無下注紀錄。在賽事卡片按「記錄下注」即可加入。</td></tr>'; return; }
+  t.innerHTML = `<thead><tr><th>時間</th><th>賽事 / 選項</th><th class="text-right">賠率</th><th class="text-right">注金</th><th class="text-right">EV</th><th>狀態</th><th class="text-right">收盤賠率</th><th class="text-right">損益</th><th></th></tr></thead><tbody>` +
+    L.bets.map((b, i) => `<tr><td class="num text-slate-400 whitespace-nowrap">${esc((b.created_at || '').slice(5, 16))}</td>
+      <td><p class="text-slate-400 text-[11px]">${esc(b.league)} ${esc(b.match)}${b.bet_type === 'parlay' ? '（串關）' : ''}</p><p class="font-semibold">${esc(b.selection)}</p></td>
+      <td class="num text-right">${b.odds.toFixed(2)}</td><td class="num text-right">${money(b.stake)}</td><td class="num text-right ${cls(b.ev_at_bet)}">${b.ev_at_bet != null ? sgn(b.ev_at_bet) + '%' : '—'}</td>
+      <td><select class="inp !w-20 !py-0.5" onchange="patchBet(${i},'status',this.value)">${Object.entries(STATUS_TXT).map(([k, v]) => `<option value="${k}" ${b.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select></td>
+      <td class="text-right"><input class="inp inp-sm num" type="number" step="0.01" value="${b.closing_odds ?? ''}" placeholder="—" onchange="patchBet(${i},'closing_odds',this.value?parseFloat(this.value):null)"></td>
+      <td class="num text-right font-semibold ${cls(profitOf(b))}">${b.status === 'pending' ? '—' : money(profitOf(b))}</td>
+      <td><button class="text-rose-400 text-xs" onclick="if(confirm('刪除這筆？')){L.bets.splice(${i},1);saveLocal();renderBets()}">刪除</button></td></tr>`).join('') + '</tbody>';
+}
+function patchBet(i, k, v) { L.bets[i][k] = v; if (k === 'status') L.bets[i].settled_at = v === 'pending' ? null : nowStr(); saveLocal(); renderBets(); }
+function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); }
+function exportCSV() {
+  const cols = ['created_at', 'league', 'match', 'selection', 'odds', 'stake', 'model_p', 'ev_at_bet', 'status', 'closing_odds', 'settled_at', 'note'];
+  const rows = [['下注時間', '聯盟', '賽事', '選項', '賠率', '注金', '模型勝率%', '下注時EV%', '狀態', '收盤賠率', '結算時間', '備註', '損益'],
+    ...L.bets.map(b => [...cols.map(c => b[c] ?? ''), Math.round(profitOf(b))])];
+  download('bets.csv', '﻿' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n'), 'text/csv');
+}
+function exportBackup() { download(`ballmetrics_backup_${todayStr()}.json`, JSON.stringify(L, null, 1), 'application/json'); }
+function importBackup(inp) {
+  const f = inp.files[0]; if (!f) return; const r = new FileReader();
+  r.onload = () => { try { const d = JSON.parse(r.result); if (!d.bets) throw 0; if (!confirm('匯入會覆蓋這台裝置目前的紀錄，確定？')) return; L = { ...L, ...d }; saveLocal(); toast('已匯入備份'); showTab('games'); } catch (e) { toast('檔案格式不正確'); } };
+  r.readAsText(f, 'utf-8');
+}
+
+// ============================================================================
+// 統計
+// ============================================================================
+function renderStats() {
+  refreshHeader();
+  const b = betStats();
+  const kpi = (k, v, c = '', sub = '') => `<div class="kpi"><p class="text-[11px] text-slate-400">${k}</p><p class="text-lg font-bold num ${c}">${v}</p>${sub ? `<p class="text-[10px] text-slate-500">${sub}</p>` : ''}</div>`;
+  document.getElementById('stats-kpis').innerHTML = [kpi('累積損益', money(b.profit), cls(b.profit), `理論期望 ${money(b.expected)}`), kpi('ROI', sgn(b.roi) + '%', cls(b.roi), `總投注 ${money(b.staked)}`),
+    kpi('命中率', b.hit.toFixed(1) + '%', '', `${b.wins} 勝 ${b.losses} 敗｜模型預期 ${b.expHit.toFixed(1)}%`), kpi('目前資金', money(b.bank), '', `未結算 ${b.pending} 筆 ${money(b.pendingStake)}`),
+    kpi('最大回撤', b.dd.toFixed(1) + '%', b.dd > 20 ? 'neg' : ''), kpi('平均賠率', b.avgOdds ? b.avgOdds.toFixed(2) : '—'),
+    kpi('平均 CLV', b.clv == null ? '—' : sgn(b.clv) + '%', b.clv == null ? '' : cls(b.clv), `${b.clvN} 筆有收盤賠率`),
+    kpi('目前連續', b.type ? `${b.streak} ${b.type === 'won' ? '連勝' : '連敗'}` : '—', b.type === 'won' ? 'pos' : b.type ? 'neg' : '')].join('');
+  if (S.chart) S.chart.destroy();
+  if (window.Chart) S.chart = new Chart(document.getElementById('curve-chart'), { type: 'line', data: { labels: b.curve.map(c => c.label), datasets: [{ data: b.curve.map(c => c.v), borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,.12)', fill: true, tension: .25, pointRadius: 2 }] },
+    options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#64748b', maxTicksLimit: 8 }, grid: { color: '#1e293b' } }, y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } } } } });
+  document.getElementById('league-table').innerHTML = b.byLg.length ? `<table class="t"><thead><tr><th>聯盟</th><th class="text-right">注數</th><th class="text-right">命中</th><th class="text-right">損益</th><th class="text-right">ROI</th></tr></thead><tbody>${b.byLg.map(d => `<tr><td>${esc(d.league)}</td><td class="num text-right">${d.bets}</td><td class="num text-right">${d.hit.toFixed(0)}%</td><td class="num text-right ${cls(d.profit)}">${money(d.profit)}</td><td class="num text-right ${cls(d.roi)}">${sgn(d.roi)}%</td></tr>`).join('')}</tbody></table>` : '<p class="text-xs text-slate-500">尚無已結算的下注。</p>';
+}
+
+// ============================================================================
+// 串關
+// ============================================================================
+function addLeg(gid, side) {
+  const g = S.games.find(x => x.id === gid), r = g.sides.find(x => x.side === side);
+  if (S.parlay.some(l => l.gid === gid)) { toast('同一場不能重複串'); return; }
+  if (!(r.odds > 1)) { toast('請先輸入這場的運彩賠率'); return; }
+  S.parlay.push({ gid, name: `${r.team}（${g.away_team} @ ${g.home_team}）`, odds: r.odds, p: +r.model_p.toFixed(1), fair_p: r.fair_p });
+  refreshHeader(); toast('已加入串關，共 ' + S.parlay.length + ' 關');
+}
+function addManualLeg() { S.parlay.push({ gid: null, name: '手動輸入', odds: 1.8, p: 55, fair_p: null }); renderParlay(); }
+function renderParlay() {
+  refreshHeader();
+  document.getElementById('parlay-legs').innerHTML = S.parlay.length ? S.parlay.map((l, i) => `<div class="flex flex-wrap items-center gap-2 p-2 rounded-lg bg-slate-900 border border-slate-800 text-xs">
+    <span class="flex-1 min-w-[10rem]">${i + 1}. ${esc(l.name)}</span>
+    <label>賠率 <input class="inp inp-sm num" type="number" step="0.01" value="${l.odds}" onchange="S.parlay[${i}].odds=parseFloat(this.value);calcParlay()"></label>
+    <label>勝率% <input class="inp inp-sm num" type="number" step="0.5" value="${l.p}" onchange="S.parlay[${i}].p=parseFloat(this.value);calcParlay()"></label>
+    <button class="text-rose-400" onclick="S.parlay.splice(${i},1);renderParlay()">移除</button></div>`).join('') : '<p class="text-xs text-slate-500">尚未加入任何一關。</p>';
+  calcParlay();
+}
+function calcParlay() {
+  const box = document.getElementById('parlay-result'); if (S.parlay.length < 2) { box.innerHTML = ''; return; }
+  const s = settings(); let o = 1, p = 1, f = 1; const hasF = S.parlay.every(l => l.fair_p);
+  for (const l of S.parlay) { o *= l.odds; p *= l.p / 100; if (hasF) f *= l.fair_p / 100; }
+  const e = ev(p, o) * 100, sp = Math.max(0, Math.min(kelly(p, o) * s.kelly_fraction, s.max_stake_pct / 100)), stake = roundStake(currentBankroll() * sp, s.stake_round);
+  box.innerHTML = `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+    <div class="kpi"><p class="text-[11px] text-slate-400">串關賠率</p><p class="num font-bold text-amber-300">${o.toFixed(3)}</p></div>
+    <div class="kpi"><p class="text-[11px] text-slate-400">全中機率</p><p class="num font-bold">${(p * 100).toFixed(2)}%</p></div>
+    <div class="kpi"><p class="text-[11px] text-slate-400">串關 EV</p><p class="num font-bold ${cls(e)}">${sgn(e)}%</p></div>
+    <div class="kpi"><p class="text-[11px] text-slate-400">建議注金</p><p class="num font-bold">${sp > 0 ? money(stake) : '不建議'}</p></div></div>
+    ${hasF ? `<p class="text-[11px] text-slate-500 mt-2">若模型沒有優勢，這張串關的期望值是 <b class="neg">${sgn(ev(f, o) * 100)}%</b>（各關抽水相乘）。</p>` : ''}`;
+}
+
+// ============================================================================
+// 模型中心
+// ============================================================================
+function renderModels() {
+  refreshHeader();
+  const ms = Object.values(S.data.models || {});
+  document.getElementById('models-box').innerHTML = `<div class="card p-4 text-xs text-slate-400 leading-relaxed space-y-1">
+    <p class="text-sm font-bold text-white">勝率模型如何運作</p>
+    <p>・<b class="text-slate-200">Elo 評分</b>：以歷史戰績替每隊算實力分數，參數自動挑選，並以最後一季做樣本外驗證。</p>
+    <p>・<b class="text-slate-200">先發投手</b>：加權近況 FIP（全壘打、四壞、三振）換算可省下的失分，再換成 Elo 加減分。</p>
+    <p>・<b class="text-slate-200">國際盤共識</b>：多家國際博彩公司賠率去水後平均（需在 GitHub 設定 ODDS_API_KEY）。</p>
+    <p>・資料由 GitHub 每 2 小時自動更新一次。</p></div>` + ms.map(m => {
+    const v = m.validation;
+    return `<div class="card p-4 space-y-3">
+      <h3 class="font-bold">${esc(m.league)} <span class="text-[11px] text-slate-400 font-normal">訓練於 ${esc(m.trained_at)}・資料至 ${esc(m.last_game)}・${m.games} 場</span></h3>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="kpi"><p class="text-[11px] text-slate-400">驗證命中率</p><p class="num font-bold">${v.model.accuracy}%</p><p class="text-[10px] text-slate-500">基準 ${v.baseline.accuracy}%</p></div>
+        <div class="kpi"><p class="text-[11px] text-slate-400">Brier（越低越好）</p><p class="num font-bold ${v.beats_baseline ? 'pos' : 'neg'}">${v.model.brier}</p><p class="text-[10px] text-slate-500">基準 ${v.baseline.brier}</p></div>
+        <div class="kpi"><p class="text-[11px] text-slate-400">只看球隊實力</p><p class="num font-bold">${v.elo_only ? v.elo_only.brier : '—'}</p><p class="text-[10px] text-slate-500">${v.elo_only ? '命中 ' + v.elo_only.accuracy + '%' : '未加入投手'}</p></div>
+        <div class="kpi"><p class="text-[11px] text-slate-400">參數</p><p class="num text-xs">K=${m.params.k}・主場 ${m.params.hfa}</p><p class="text-[10px] text-slate-500">${m.sp ? '投手：' + m.sp.pitchers.length + ' 位' : '無投手資料'}</p></div></div>
+      <p class="text-[11px] ${v.beats_baseline ? 'pos' : 'neg'}">驗證集：${esc(v.split)}（訓練時未使用）${v.beats_baseline ? '，優於基準' : '，未優於基準'}</p>
+      ${m.sp_note ? `<p class="text-[11px] text-amber-300">${esc(m.sp_note)}</p>` : ''}
+      <div class="grid md:grid-cols-2 gap-4">
+        <div><p class="text-[11px] text-slate-400 mb-1">校準：預測 vs 實際</p><table class="t"><tbody>${v.calibration.map(c => `<tr><td>${c.range}</td><td class="num text-right">${c.n} 場</td><td class="num text-right">預測 ${c.predicted}%</td><td class="num text-right">實際 ${c.actual}%</td></tr>`).join('')}</tbody></table></div>
+        <div><p class="text-[11px] text-slate-400 mb-1">Elo 排名</p><div class="max-h-72 overflow-y-auto"><table class="t"><tbody>${Object.entries(m.ratings).map(([t, r], i) => `<tr><td class="num text-slate-500">${i + 1}</td><td>${esc(t)}</td><td class="num text-right">${Math.round(r)}</td></tr>`).join('')}</tbody></table></div></div></div></div>`;
+  }).join('');
+}
+
+// ============================================================================
+// 設定
+// ============================================================================
+const SETTING_FIELDS = [['bankroll', '起始資金（元）', 1000], ['kelly_fraction', '分數凱利（0~1）', 0.05], ['min_ev', '進場 EV 門檻（%）', 0.5], ['min_edge', '最低勝率優勢（百分點）', 0.5],
+  ['max_stake_pct', '單注上限（資金 %）', 0.5], ['stake_round', '注金進位（元）', 10], ['min_odds', '最低賠率', 0.05], ['max_odds', '最高賠率', 0.1],
+  ['daily_loss_limit_pct', '單日虧損上限（資金 %）', 1], ['elo_weight', '混合時 Elo 權重（0~1）', 0.05]];
+function renderSettings() {
+  refreshHeader();
+  const s = settings();
+  document.getElementById('settings-form').innerHTML = SETTING_FIELDS.map(([k, l, st]) => `<label><span class="text-slate-400">${l}</span><input class="inp num" name="${k}" type="number" step="${st}" value="${s[k]}"></label>`).join('') +
+    `<label><span class="text-slate-400">去水方法</span><select class="inp" name="devig_method"><option value="power" ${s.devig_method === 'power' ? 'selected' : ''}>冪次法（建議）</option><option value="proportional" ${s.devig_method === 'proportional' ? 'selected' : ''}>等比例</option></select></label>
+     <label><span class="text-slate-400">自動模型方式</span><select class="inp" name="model_mode"><option value="blend" ${s.model_mode === 'blend' ? 'selected' : ''}>混合 Elo＋國際盤</option><option value="market" ${s.model_mode === 'market' ? 'selected' : ''}>只用國際盤</option><option value="elo" ${s.model_mode === 'elo' ? 'selected' : ''}>只用 Elo</option></select></label>`;
+  const st = S.data.status || {};
+  document.getElementById('sync-box').innerHTML = `雲端最後更新：${esc(st.last_run || '—')}・新增 ${st.summary?.created ?? 0} 場・賽果 ${st.summary?.results ?? 0} 場${st.odds_quota != null ? '・國際盤剩餘額度 ' + esc(st.odds_quota) : ''}
+    ${(st.errors || []).length ? '<br><span class="text-amber-300">⚠ ' + st.errors.map(esc).join('<br>⚠ ') + '</span>' : ''}`;
+}
+function saveSettings() {
+  const f = Object.fromEntries(new FormData(document.getElementById('settings-form')).entries());
+  for (const [k, v] of Object.entries(f)) L.settings[k] = ['devig_method', 'model_mode'].includes(k) ? v : parseFloat(v);
+  saveLocal(); toast('設定已儲存'); refreshHeader();
+}
+
+// ============================================================================
+// 啟動
+// ============================================================================
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+(async () => {
+  if (!PASSWORD) return;
+  try { S.data = await fetchData(PASSWORD); unlock(); }
+  catch (e) { document.getElementById('lock-err').textContent = e.message === '密碼錯誤' ? '密碼已變更，請重新輸入' : e.message; }
+})();
+</script>
+</body>
+</html>

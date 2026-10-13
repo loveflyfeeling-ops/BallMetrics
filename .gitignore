@@ -1,0 +1,10 @@
+# 個人資料與狀態一律不上傳（雲端版的資料以加密方式存在 Release）
+data/
+cloud_state/
+site/
+__pycache__/
+*.pyc
+cloudflared*
+*.enc
+*.tmp
+cpbl_history_*.json

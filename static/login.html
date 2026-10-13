@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+<link rel="icon" href="/static/icons/favicon-32.png">
+<title>登入 - BallMetrics</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; min-height: 100vh; background: #0b0f19; color: #f1f5f9; display: grid; place-items: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", Roboto, sans-serif;
+    padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom); }
+  .box { width: 100%; max-width: 340px; text-align: center; }
+  .logo { width: 64px; height: 64px; border-radius: 16px; margin: 0 auto 12px; display: block; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p { color: #94a3b8; font-size: 13px; margin: 0 0 24px; }
+  .dots { display: flex; justify-content: center; gap: 14px; margin-bottom: 8px; height: 18px; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #475569; }
+  .dot.on { background: #818cf8; border-color: #818cf8; }
+  .err { color: #f87171; font-size: 13px; min-height: 20px; margin-bottom: 12px; }
+  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .pad button { height: 64px; border-radius: 16px; border: 1px solid #1e293b; background: #0f172a; color: #f1f5f9;
+    font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; }
+  .pad button:active { background: #1e293b; }
+  .pad .ghost { background: transparent; border-color: transparent; font-size: 15px; color: #94a3b8; }
+  .ok { background: #4f46e5 !important; border-color: #4f46e5 !important; font-size: 16px !important; }
+  .shake { animation: shake .3s; }
+  @keyframes shake { 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+</style>
+</head>
+<body>
+<div class="box">
+  <img class="logo" src="/static/icons/icon-192.png" alt="">
+  <h1>BallMetrics AI</h1>
+  <p>請輸入 PIN 碼</p>
+  <div class="dots" id="dots"></div>
+  <div class="err" id="err"></div>
+  <div class="pad" id="pad"></div>
+</div>
+<script>
+  let pin = '';
+  const dots = document.getElementById('dots'), err = document.getElementById('err');
+  function draw() {
+    const n = Math.max(4, pin.length);
+    dots.innerHTML = Array.from({ length: n }, (_, i) => `<span class="dot ${i < pin.length ? 'on' : ''}"></span>`).join('');
+  }
+  const keys = ['1','2','3','4','5','6','7','8','9','⌫','0','確定'];
+  document.getElementById('pad').innerHTML = keys.map(k =>
+    `<button class="${k === '⌫' ? 'ghost' : k === '確定' ? 'ok' : ''}" data-k="${k}">${k}</button>`).join('');
+  document.getElementById('pad').addEventListener('click', e => {
+    const k = e.target.dataset.k; if (!k) return;
+    err.textContent = '';
+    if (k === '⌫') pin = pin.slice(0, -1);
+    else if (k === '確定') submit();
+    else if (pin.length < 8) pin += k;
+    draw();
+  });
+  document.addEventListener('keydown', e => {
+    if (/^\d$/.test(e.key) && pin.length < 8) pin += e.key;
+    else if (e.key === 'Backspace') pin = pin.slice(0, -1);
+    else if (e.key === 'Enter') submit();
+    draw();
+  });
+  async function submit() {
+    if (pin.length < 4) { err.textContent = 'PIN 至少 4 位數'; return; }
+    try {
+      const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin }) });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) { location.replace('/'); return; }
+      err.textContent = j.detail || '登入失敗';
+    } catch (e) { err.textContent = '無法連線，請確認電腦上的程式有開著'; }
+    pin = ''; draw();
+    dots.classList.remove('shake'); void dots.offsetWidth; dots.classList.add('shake');
+  }
+  draw();
+</script>
+</body>
+</html>
