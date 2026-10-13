@@ -36,7 +36,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p cloud_state
-          gh release download state -p state.enc -D cloud_state --clobber || echo "尚無狀態檔"
+          gh release download state -p state.enc -D cloud_state --clobber \
+            || { echo "首次執行：使用儲存庫內的初始加密狀態"; cp cloud/initial_state.enc cloud_state/state.enc; }
 
       - name: 同步資料、更新模型、加密輸出
         env:

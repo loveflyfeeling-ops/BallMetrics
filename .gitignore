@@ -6,5 +6,6 @@ __pycache__/
 *.pyc
 cloudflared*
 *.enc
+!cloud/initial_state.enc
 *.tmp
 cpbl_history_*.json
